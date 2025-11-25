@@ -1,10 +1,6 @@
----
-title: RTK GNSS Base Station using ESP32-S3 and Ublox ZED-F9P
-description: Design and build a RTK GNSS Base Station to provide precise positioning service, which sends RTCM messages over a self-hosted NTRIP web server or an external Radio module, supports SD Card and USB Storage for post-processing purposes.
-slug: esp32-s3-gnss-base-station
----
+# RTK GNSS Base Station using ESP32-S3 and Ublox ZED-F9P
 
-## Table of Content
+Design and build a RTK GNSS Base Station to provide precise positioning service, which sends RTCM messages over a self-hosted NTRIP web server or an external Radio module, supports micro SD Card storage for post-processing purposes.
 
 ## Hardware
 
@@ -69,3 +65,13 @@ Parts:
     - Goto Preferences > Manage Footprint Libraries, in Project Specific Libs, add `${KIPRJMOD}/libs/LCSC.pretty`
 
     </details>
+
+### Schematic
+
+| Part                                         | Link                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| Espressif WiFi Module ESP32-S3-WROOM-1-N16R8 | https://jlcpcb.com/partdetail/3198300-ESP32_S3_WROOM_1N16R8/C2913202 |
+| U-blox GNSS Receiver ZED-F9P-04B             | https://jlcpcb.com/partdetail/UBLOX-ZED_F9P04B/C5120257              |
+| ShouHan Female Micro-B Connector             | https://jlcpcb.com/partdetail/SHOUHAN-MicroQTJ/C404968               |
+| SOFNG MicroSD Card Push-Push Connector       | https://jlcpcb.com/partdetail/SOFNG-TF001B/C125617                   |
+| XKB Slide Switches SS-12D10L5                | https://jlcpcb.com/partdetail/XKBConnection-SS12D10L5/C319012        |
