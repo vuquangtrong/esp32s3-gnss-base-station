@@ -1,25 +1,162 @@
-(module easyeda2kicad:SW-TH_SS-12D10L5 (layer F.Cu) (tedit 5DC5F6A4)
+(footprint "SW-TH_SS-12D10L5"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 -4 0)
+		(layer "F.SilkS")
+		(uuid "739bbda1-b9a9-496b-847e-9c61b5adf7de")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SW-TH_SS-12D10L5"
+		(at 0 4 0)
+		(layer "F.Fab")
+		(uuid "7d31e035-c7bb-46e1-944d-51ff355cda3c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "e5c3625e-6e37-4852-a1d7-79a4825b9e92")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "12ec9a2f-e842-4f71-9aa9-d5288e50f5c3")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
 	(attr through_hole)
-	(fp_text reference REF** (at 0 -4.0) (layer F.SilkS)
-		(effects (font (size 1 1) (thickness 0.15)))
+	(fp_line
+		(start -6.35 -3.35)
+		(end 6.35 -3.35)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "81072d62-8ccb-4053-a70a-8baacf8018a9")
 	)
-	(fp_text value SW-TH_SS-12D10L5 (at 0 4.0) (layer F.Fab)
-		(effects (font (size 1 1) (thickness 0.15)))
+	(fp_line
+		(start -6.35 3.35)
+		(end -6.35 -3.35)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "c5a45e5b-e200-4c49-abf4-e23b83a519fd")
 	)
-	(fp_text user %R (at 0 0) (layer F.Fab)
-		(effects (font (size 1 1) (thickness 0.15)))
+	(fp_line
+		(start 6.35 -3.35)
+		(end 6.35 3.35)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "4785baec-b6cf-4ba3-93dd-cb37fbf2b4ca")
 	)
-	(fp_line (start -6.35 -3.35) (end 6.35 -3.35) (layer F.SilkS) (width 0.25))
-	(fp_line (start 6.35 -3.35) (end 6.35 3.35) (layer F.SilkS) (width 0.25))
-	(fp_line (start 6.35 3.35) (end -6.35 3.35) (layer F.SilkS) (width 0.25))
-	(fp_line (start -6.35 3.35) (end -6.35 -3.35) (layer F.SilkS) (width 0.25))
-	(pad 1 thru_hole oval (at -4.70 0.00 0.00) (size 2.000 3.000) (layers *.Cu *.Mask)(drill oval 1.3000228 1.9999959999999999))
-	(pad 2 thru_hole oval (at 0.00 0.00 0.00) (size 2.000 3.000) (layers *.Cu *.Mask)(drill oval 1.3000228 1.9999959999999999))
-	(pad 3 thru_hole oval (at 4.70 0.00 0.00) (size 2.000 3.000) (layers *.Cu *.Mask)(drill oval 1.3000228 1.9999959999999999))
-	(fp_circle (center -6.48 3.48) (end -6.45 3.48) (layer F.Fab) (width 0.06))
+	(fp_line
+		(start 6.35 3.35)
+		(end -6.35 3.35)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "8c60616f-9aa5-4192-98cd-e5ca0671a2e5")
+	)
+	(fp_circle
+		(center -7 0)
+		(end -7 -0.2)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.SilkS")
+		(uuid "919c6e31-c75c-48cd-8242-afccb5c4f7e2")
+	)
+	(fp_circle
+		(center -6.48 3.48)
+		(end -6.45 3.48)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "460698b6-88a3-4dc0-8900-fe793bbbb902")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "73ff33d0-7e67-40aa-9d01-edb3a2cf71c7")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole oval
+		(at -4.7 0)
+		(size 2 3)
+		(drill oval 1.300023 1.999996)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "dff9e56a-8545-451f-9804-5f2ed311e7d9")
+	)
+	(pad "2" thru_hole oval
+		(at 0 0)
+		(size 2 3)
+		(drill oval 1.300023 1.999996)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "d5accdf4-3a90-4f68-8d71-85b7efef800a")
+	)
+	(pad "3" thru_hole oval
+		(at 4.7 0)
+		(size 2 3)
+		(drill oval 1.300023 1.999996)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "f12e9303-9127-4233-b66b-c2c43dbbc938")
+	)
+	(embedded_fonts no)
 	(model "${KIPRJMOD}/libs/LCSC.3dshapes/SW-TH_L13.0-W6.8-H6.4-P4.7.wrl"
-		(offset (xyz 0.000 -0.000 0.000))
-		(scale (xyz 1 1 1))
-		(rotate (xyz 0 0 0))
+		(offset
+			(xyz 0 -0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
 	)
 )

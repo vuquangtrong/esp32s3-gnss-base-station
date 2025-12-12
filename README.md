@@ -68,10 +68,33 @@ Parts:
 
 ### Schematic
 
-| Part                                         | Link                                                                 |
-| -------------------------------------------- | -------------------------------------------------------------------- |
-| Espressif WiFi Module ESP32-S3-WROOM-1-N16R8 | https://jlcpcb.com/partdetail/3198300-ESP32_S3_WROOM_1N16R8/C2913202 |
-| U-blox GNSS Receiver ZED-F9P-04B             | https://jlcpcb.com/partdetail/UBLOX-ZED_F9P04B/C5120257              |
-| ShouHan Female Micro-B Connector             | https://jlcpcb.com/partdetail/SHOUHAN-MicroQTJ/C404968               |
-| SOFNG MicroSD Card Push-Push Connector       | https://jlcpcb.com/partdetail/SOFNG-TF001B/C125617                   |
-| XKB Slide Switches SS-12D10L5                | https://jlcpcb.com/partdetail/XKBConnection-SS12D10L5/C319012        |
+| Part                                                                                 | Link                                                                     |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Espressif WiFi Module ESP32-S3-WROOM-1-N16R8                                         | <https://jlcpcb.com/partdetail/3198300-ESP32_S3_WROOM_1N16R8/C2913202>   |
+| U-blox GNSS Receiver ZED-F9P-04B                                                     | <https://jlcpcb.com/partdetail/UBLOX-ZED_F9P04B/C5120257>                |
+| ShouHan Female Micro-B Connector MicroQTJ                                            | <https://jlcpcb.com/partdetail/SHOUHAN-MicroQTJ/C404968>                 |
+| SOFNG MicroSD Card Push-Push Connector TF001B                                        | <https://jlcpcb.com/partdetail/SOFNG-TF001B/C125617>                     |
+| XKB 125V 3A SPDT Slide Switch SS-12D10L5                                             | <https://jlcpcb.com/partdetail/XKBConnection-SS12D10L5/C319012>          |
+| SILICON LABS 3.3V 20mA 1Mbps USB 2.0 Transceiver CP2102-GMR                          | <https://jlcpcb.com/partdetail/SKYWORKS_SILICONLABS-CP2102GMR/C6568>     |
+| TOPPOWER 4.2V 450mA 1-Cell Lithium Battery Charger TP4054-42-SOT25R                  | <https://jlcpcb.com/partdetail/33539-TP4054_42SOT25R/C32574>             |
+| Silergy Corp 2.7-5.5V 2A Adjustable Buck DC Converter SY8089AAAC                     | <https://jlcpcb.com/partdetail/SilergyCorp-SY8089AAAC/C78988>            |
+| Hongjiacheng 2-NPN SOT-363 Bipolar MMDT3904                                          | <https://jlcpcb.com/partdetail/hongjiacheng-MMDT3904/C41375125>          |
+| JST 1x2P 2mm Connector B2B-PH-K-S(LF)(SN)                                            | <https://jlcpcb.com/partdetail/JST-B2B_PH_K_S_LF_SN/C131337>             |
+| UNI-ROYAL(Uniroyal Elec) 100mW 33Ω 75V 0603 SMD 0603WAF330JT5E                       | <https://jlcpcb.com/partdetail/23867-0603WAF330JT5E/C23140>              |
+| UNI-ROYAL(Uniroyal Elec) 100mW 1kΩ 75V 0603 SMD 0603WAF1001T5E                       | <https://jlcpcb.com/partdetail/21904-0603WAF1001T5E/C21190>              |
+| UNI-ROYAL(Uniroyal Elec) 100mW 2.2kΩ 75V 0603 SMD 0603WAF2201T5E                     | <https://jlcpcb.com/partdetail/4597-0603WAF2201T5E/C4190>                |
+| UNI-ROYAL(Uniroyal Elec) 100mW 10kΩ 75V 0603 SMD 0603WAF1002T5E                      | <https://jlcpcb.com/partdetail/26547-0603WAF1002T5E/C25804>              |
+| UNI-ROYAL(Uniroyal Elec) 100mW 150kΩ 75V 0603 SMD 0603WAF1503T5E                     | <https://jlcpcb.com/partdetail/23534-0603WAF1503T5E/C22807>              |
+| UNI-ROYAL(Uniroyal Elec) 100mW 680kΩ 75V 0603 SMD 0603WAF6803T5E                     | <https://jlcpcb.com/partdetail/26565-0603WAF6803T5E/C25822>              |
+| Samsung Electro-Mechanics 100nF 16V X7R ±10% 0402 Ceramic Capacitors CL05B104KO5NNNC | <https://jlcpcb.com/partdetail/1877-CL05B104KO5NNNC/C1525>               |
+| Samsung Electro-Mechanics 10uF 25V X5R ±20% 0603 Ceramic Capacitors CL10A106MA8NRNC  | <https://jlcpcb.com/partdetail/97651-CL10A106MA8NRNC/C96446>             |
+| Samsung Electro-Mechanics 22uF 25V X5R ±20% 0805 Ceramic Capacitors CL21A226MAQNNNE  | <https://jlcpcb.com/partdetail/46786-CL21A226MAQNNNE/C45783>             |
+| Samsung Electro-Mechanics 47pF 50V C0G ±5% 0603 Ceramic Capacitors CL10C470JB8NNNC   | <https://jlcpcb.com/partdetail/2023-CL10C470JB8NNNC/C1671>               |
+| Hubei KENTO Elec 2.4V 20mA 300mcd 40mW 645nm Red Water Clear 0603 LED                | <https://jlcpcb.com/partdetail/Hubei_KENTOElec-KT0603R/C2286>            |
+| Sunlord 2.2uH 2A 52mΩ ±20% SMD 4x4mm Power Inductors SWPA4026S2R2MT                  | <https://jlcpcb.com/partdetail/Sunlord-SWPA4026S2R2MT/C96891>            |
+| Murata Electronics 110mA 120nH 2.66Ω ±5% 0402 Power Inductors LQW15ANR12J00D         | <https://jlcpcb.com/partdetail/MurataElectronics-LQW15ANR12J00D/C113123> |
+| Q&J CR1220 SMD Button And Strip Battery Connector CR1220-2                           | <https://jlcpcb.com/partdetail/QJ-CR12202/C70381>                        |
+| ~~Guangdong Hottech 1A 600mV@1A SOD-323 Schottky Diodes 1N5819WS~~                   | <https://jlcpcb.com/partdetail/GuangdongHottech-1N5819WS/C191023>        |
+| ~~TECH PUBLIC 2.8A 20V 450mV SOT-23 P-channel MOSFETs WPM2015-3/TR~~                 | <https://jlcpcb.com/partdetail/TECHPUBLIC-WPM2015_3TR/C7472861>          |
+| BAT WIRELESS 50Ω 6GHz MCX Female Connectors BWMCX-KE                                 | <https://jlcpcb.com/partdetail/BATWIRELESS-BWMCXKE/C5137197>             |
+| ~~BAT WIRELESS 50Ω 6GHz SMA Female Connectors BWMCX-KE~~                             | <https://jlcpcb.com/partdetail/BATWIRELESS-BWMCXKE/C5137197>             |

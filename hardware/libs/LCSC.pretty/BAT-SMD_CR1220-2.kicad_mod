@@ -1,0 +1,232 @@
+(footprint "BAT-SMD_CR1220-2"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 -4 0)
+		(layer "F.SilkS")
+		(uuid "663503ec-28ae-4e56-9f57-8c6dcedb6c6e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "BAT-SMD_CR1220-2"
+		(at 0 4 0)
+		(layer "F.Fab")
+		(uuid "9ebd0756-adc5-40c8-8eaf-9b5d78c578f1")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "3dd4a219-f93d-4564-a248-889882858889")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "4fb627a1-4309-43af-9799-45553b3afc2b")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_line
+		(start -8.26 -7.24)
+		(end -8.26 -2.28)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "bc94383a-ecad-4659-aadb-36acf30c3c9c")
+	)
+	(fp_line
+		(start -8.26 2.29)
+		(end -8.26 7.24)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "f14bf33e-8d33-4fb1-8d4b-2b84b10cbb6a")
+	)
+	(fp_line
+		(start -8.26 7.24)
+		(end -4.45 7.24)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "55ff122c-beea-4b8b-b1d4-1c14346bed8c")
+	)
+	(fp_line
+		(start -4.45 -7.24)
+		(end -8.26 -7.24)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "671a8074-fe86-4493-8a2f-c1005b485ae9")
+	)
+	(fp_line
+		(start -4.45 -5.97)
+		(end -4.45 -7.24)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "b80cc32c-3e5f-47b3-82b7-2f0ec25cec36")
+	)
+	(fp_line
+		(start -4.45 7.24)
+		(end -4.45 5.84)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "6a339518-fa93-4c8f-b31c-9b580c88a1cb")
+	)
+	(fp_arc
+		(start -6.91 -2.17)
+		(mid 0.395803 -7.217924)
+		(end 7.1076 -1.403454)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "35ff5f4f-bbb8-47fc-aad8-d97216e2371c")
+	)
+	(fp_arc
+		(start 7.05 1.42)
+		(mid 0.447691 7.185665)
+		(end -6.82007 2.285356)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "ca532076-dcfd-44c2-b973-7f05fbe22da8")
+	)
+	(fp_circle
+		(center -3.75 0)
+		(end -3.5 0)
+		(stroke
+			(width 0.5)
+			(type solid)
+		)
+		(fill no)
+		(layer "Cmts.User")
+		(uuid "2ea734e2-43f3-492f-acc8-75a504bbe7b8")
+	)
+	(fp_circle
+		(center 3.75 0)
+		(end 3.94 0)
+		(stroke
+			(width 0.38)
+			(type solid)
+		)
+		(fill no)
+		(layer "Cmts.User")
+		(uuid "9fb439de-5d64-4690-8028-2f2f1efdee67")
+	)
+	(fp_circle
+		(center -10.07 7.19)
+		(end -10.04 7.19)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "e84db7dd-34d1-472b-8b0c-ea5faa74f070")
+	)
+	(fp_text user "+"
+		(at -12.6 5.1 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "f3251a86-0522-4ead-80c9-fb1ff5185bc9")
+		(effects
+			(font
+				(size 4 4)
+				(thickness 0.2)
+			)
+			(justify left bottom)
+		)
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "58764d3d-8cf8-466d-b8ff-66e7867682ab")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "" thru_hole circle
+		(at -3.75 0)
+		(size 1.2 1.2)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "f212d907-9784-468b-a5bc-a9c66ed64548")
+	)
+	(pad "" thru_hole circle
+		(at 3.75 0)
+		(size 1 1)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "d64da5c8-d12a-4699-9e4b-c26dc04d1709")
+	)
+	(pad "1" smd rect
+		(at -8.6 0 180)
+		(size 4.5 2.3)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "211ff49f-99d0-43b6-985f-a68794443fbd")
+	)
+	(pad "2" smd rect
+		(at 8.6 0 180)
+		(size 4.5 2.3)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "b542e695-a4cc-488f-ace6-d3aa3b3070dd")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/libs/LCSC.3dshapes/BAT-SMD_CR1220-2.wrl"
+		(offset
+			(xyz -0 -0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz -0 -0 180)
+		)
+	)
+)
