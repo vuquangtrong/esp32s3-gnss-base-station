@@ -98,3 +98,8 @@ Parts:
 | ~~TECH PUBLIC 2.8A 20V 450mV SOT-23 P-channel MOSFETs WPM2015-3/TR~~                 | <https://jlcpcb.com/partdetail/TECHPUBLIC-WPM2015_3TR/C7472861>          |
 | BAT WIRELESS 50Ω 6GHz MCX Female Connectors BWMCX-KE                                 | <https://jlcpcb.com/partdetail/BATWIRELESS-BWMCXKE/C5137197>             |
 | ~~BAT WIRELESS 50Ω 6GHz SMA Female Connectors BWMCX-KE~~                             | <https://jlcpcb.com/partdetail/BATWIRELESS-BWMCXKE/C5137197>             |
+
+### PCB Layout
+
+https://jlcpcb.com/help/article/User-Guide-to-the-JLCPCB-Impedance-Calculator
+
