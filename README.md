@@ -94,12 +94,8 @@ Parts:
 | Sunlord 2.2uH 2A 52mΩ ±20% SMD 4x4mm Power Inductors SWPA4026S2R2MT                  | <https://jlcpcb.com/partdetail/Sunlord-SWPA4026S2R2MT/C96891>            |
 | Murata Electronics 110mA 120nH 2.66Ω ±5% 0402 Power Inductors LQW15ANR12J00D         | <https://jlcpcb.com/partdetail/MurataElectronics-LQW15ANR12J00D/C113123> |
 | Q&J CR1220 SMD Button And Strip Battery Connector CR1220-2                           | <https://jlcpcb.com/partdetail/QJ-CR12202/C70381>                        |
-| ~~Guangdong Hottech 1A 600mV@1A SOD-323 Schottky Diodes 1N5819WS~~                   | <https://jlcpcb.com/partdetail/GuangdongHottech-1N5819WS/C191023>        |
-| ~~TECH PUBLIC 2.8A 20V 450mV SOT-23 P-channel MOSFETs WPM2015-3/TR~~                 | <https://jlcpcb.com/partdetail/TECHPUBLIC-WPM2015_3TR/C7472861>          |
-| BAT WIRELESS 50Ω 6GHz MCX Female Connectors BWMCX-KE                                 | <https://jlcpcb.com/partdetail/BATWIRELESS-BWMCXKE/C5137197>             |
-| ~~BAT WIRELESS 50Ω 6GHz SMA Female Connectors BWMCX-KE~~                             | <https://jlcpcb.com/partdetail/BATWIRELESS-BWMCXKE/C5137197>             |
+| BAT WIRELESS 50Ω 6GHz SMB Female Connectors BWSMB-KE                                 | <https://jlcpcb.com/partdetail/BATWIRELESS-BWSMBKE/C5250063>             |
 
 ### PCB Layout
 
 https://jlcpcb.com/help/article/User-Guide-to-the-JLCPCB-Impedance-Calculator
-
