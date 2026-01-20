@@ -99,3 +99,25 @@ Parts:
 ### PCB Layout
 
 https://jlcpcb.com/help/article/User-Guide-to-the-JLCPCB-Impedance-Calculator
+
+## Firmware
+
+### ESP-IDF
+
+Install EIM:
+``` sh
+echo "deb [trusted=yes] https://dl.espressif.com/dl/eim/apt/ stable main" | sudo tee /etc/apt/sources.list.d/espressif.list
+sudo apt update
+sudo apt install eim
+```
+
+Run EIM:
+- Install latest STABLE version
+- Use default settings
+
+Add OpenOCD udev rules:
+``` sh
+find ~/.espressif -type f -name "*.rules" -exec sudo cp -v {} /etc/udev/rules.d/ \;
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
