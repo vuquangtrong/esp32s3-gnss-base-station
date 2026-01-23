@@ -1,0 +1,15 @@
+AccessModifierOffset: -3
+AlignAfterOpenBracket: BlockIndent
+AlignConsecutiveAssignments: true
+AlignConsecutiveMacros: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+BasedOnStyle: Google
+BreakBeforeBraces: Allman
+ColumnLimit: 160
+ContinuationIndentWidth: 4
+IndentWidth: 4
+Language: Cpp
+SortIncludes: false
+Standard: c++20
+TabWidth: 4
