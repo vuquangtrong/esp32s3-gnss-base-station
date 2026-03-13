@@ -112,7 +112,7 @@ sudo apt install eim
 ```
 
 Run EIM:
-- Install latest STABLE version
+- Install latest STABLE version, at the moment, it is https://docs.espressif.com/projects/esp-idf/en/v5.5.2/esp32/
 - Use default settings
 
 Add OpenOCD udev rules:
