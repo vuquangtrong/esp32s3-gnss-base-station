@@ -1,0 +1,7 @@
+# Flash size 16MB
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,           ,  512K,
+phy_init, data, phy,           ,  512K,
+factory,  app,  factory,       ,  4M,
+coredump, data, coredump,      ,  1M,
+www,      data, spiffs,        ,  8M,

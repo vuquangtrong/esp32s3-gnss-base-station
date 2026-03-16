@@ -1,0 +1,1043 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GNSS RTK Station</title>
+    <link href="bootstrap.min.css" rel="stylesheet">
+    <link href="favicon.ico" rel="icon">
+    <script src="jquery-3.7.0.min.js"></script>
+    <style>
+        .card-title {
+            font-weight: bold;
+            margin-bottom: unset;
+        }
+
+        .input-label {
+            min-width: 12ch;
+        }
+
+        .form-control {
+            color: navy;
+            font-weight: bold;
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--bs-dark);
+        }
+
+        .nav-tabs .nav-link.active {
+            color: var(--bs-primary);
+        }
+
+        .tab-content {
+            border-left: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            border-bottom: 1px solid #ddd;
+            border-radius: 0px 0px var(--bs-border-radius) var(--bs-border-radius);
+            padding: .75rem;
+        }
+
+        .bg-grey {
+            background-color: lightgrey;
+        }
+
+        #gnss_indicator {
+            vertical-align: text-bottom;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <div class="container mt-3">
+        <form class="needs-validation" id="form" novalidate>
+            <div class="row">
+                <div class="col-xl-6">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <div>
+                                <span id="lbl_gnss_status" class="d-inline-block card-title">GNSS Position</span>
+                                <div class="d-inline-block float-end ">
+                                    <span class="badge bg-grey text-dark ms-1" id="battery_indicator">0</span>
+                                </div>
+                                <div class="d-inline-block float-end ">
+                                    <span id="gnss_status"></span>
+                                    <span class="badge bg-grey ms-1" id="gnss_indicator">&nbsp;</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="input-group mb-1">
+                                    <span id="lbl_gnss_lat" class="input-group-text input-label">Latitude</span>
+                                    <input type="number" class="form-control" id="gnss_lat" value="" disabled>
+                                </div>
+                                <div class="input-group mb-1">
+                                    <span id="lbl_gnss_lon" class="input-group-text input-label">Longitude</span>
+                                    <input type="number" class="form-control" id="gnss_lon" value="" disabled>
+                                </div>
+                                <div class="input-group mb-1">
+                                    <span id="lbl_gnss_alt" class="input-group-text input-label">Altitude</span>
+                                    <input type="number" class="form-control" id="gnss_alt" value="" disabled>
+                                    <span class="input-group-text">m</span>
+                                </div>
+                                <div class="input-group mb-1 advanced d-none">
+                                    <span class="input-group-text input-label">ASL</span>
+                                    <input type="number" class="form-control" id="gnss_asl" value="" disabled>
+                                    <span class="input-group-text">m</span>
+                                </div>
+                                <div class="input-group mb-1 advanced d-none">
+                                    <span class="input-group-text input-label">GeoSep</span>
+                                    <input type="number" class="form-control" id="gnss_gsep" value="" disabled>
+                                    <span class="input-group-text">m</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="mb-1">
+                                    <span id="lbl_std_deviation">Standard Deviation</span><span class="small ms-1">(m)</span>
+                                    <div class="d-inline-block float-end ">
+                                        <span id="gnss_siv">0</span><span id="lbl_gnss_siv" class="small ms-1">satellites</span>
+                                    </div>
+                                </div>
+                                <div class="input-group mb-1">
+                                    <span class="input-group-text">&sigma;<sub>Lat</sub></span>
+                                    <input type="number" class="form-control" id="gnss_sigma_lat" value="" disabled>
+                                    <span class="input-group-text">&sigma;<sub>Lon</sub></span>
+                                    <input type="number" class="form-control" id="gnss_sigma_lon" value="" disabled>
+                                    <span class="input-group-text">&sigma;<sub>Alt</sub></span>
+                                    <input type="number" class="form-control" id="gnss_sigma_alt" value="" disabled>
+                                </div>
+                            </div>
+                            <div class="mb-1">
+                                <div class="mb-1">
+                                    <span id="lbl_operation_mode">Operation Mode</span>
+                                </div>
+                                <div class="input-group mb-1">
+                                    <input type="text" class="form-control" id="gnss_mode" value="" disabled>
+                                </div>
+                                <div class="mb-1">
+                                    <ul class="nav nav-tabs nav-fill" id="gnss_tabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active" id="btn_gnss_tab_rover" data-bs-toggle="tab" data-bs-target="#gnss_pane_rover" type="button" role="tab">Rover</button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="btn_gnss_tab_base" data-bs-toggle="tab" data-bs-target="#gnss_pane_base" type="button" role="tab">Base</button>
+                                        </li>
+                                    </ul>
+                                    <div class="tab-content" id="gnss_panes">
+                                        <div class="tab-pane fade show active" id="gnss_pane_rover" role="tabpanel" tabindex="0">
+                                            <div>
+                                                <div class="input-group mb-1">
+                                                    <div class="form-check flex-fill">
+                                                        <input class="form-check-input" type="checkbox" value="" id="ntrip_cli_enable" checked disabled>
+                                                        <label id="lbl_ntrip_cli_enable" class="form-check-label" for="ntrip_cli_enable">Use NTRIP service</label>
+                                                    </div>
+                                                    <span class="" id="ntrip_cli_status">Unknown</span>
+                                                </div>
+                                                <div id="ntrip_cli_panel">
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_ntrip_cli_ip" class="input-group-text input-label">IP/Host</span>
+                                                        <input type="text" class="form-control" id="ntrip_cli_ip" value="">
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_ntrip_cli_port" class="input-group-text input-label">Port</span>
+                                                        <input type="number" class="form-control" id="ntrip_cli_port" value="">
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_ntrip_cli_user" class="input-group-text input-label">Username</span>
+                                                        <input type="text" class="form-control" id="ntrip_cli_user" value="">
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_ntrip_cli_pwd" class="input-group-text input-label">Password</span>
+                                                        <input type="text" class="form-control" id="ntrip_cli_pwd" value="">
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_ntrip_cli_mnt" class="input-group-text input-label">Mount</span>
+                                                        <select class="form-select" id="ntrip_cli_mnt"></select>
+                                                    </div>
+                                                    <div class="mb-3"></div>
+                                                    <div class="input-group mb-1">
+                                                        <button class="btn btn-outline-primary w-50" type="button" id="btn_ntrip_cli_get_mnts">Get Mounts</button>
+                                                        <button class="btn btn-outline-primary w-50" type="button" id="btn_ntrip_cli_connect">Connect</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3"></div>
+                                            <div class="input-group mb-1">
+                                                <button class="btn btn-outline-primary mx-auto w-50" type="button" id="btn_gnss_mode_set_rover">Start Rover</button>
+                                            </div>
+                                        </div>
+                                        <div class="tab-pane fade" id="gnss_pane_base" role="tabpanel" tabindex="0">
+                                            <div>
+                                                <div class="input-group mb-1">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="" id="gnss_base_fixed_enable" checked disabled>
+                                                        <label id="lbl_gnss_base_fixed_enable" class="form-check-label" for="gnss_base_fixed_enable">Set Base's position manually</label>
+                                                    </div>
+                                                </div>
+                                                <div id="gnss_pane_survey">
+                                                    <div class="small mb-1">
+                                                        <span id="lbl_survey_in_option">Survey-in Option</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_gnss_survey_dur" class="input-group-text input-label">Duration</span>
+                                                        <input type="number" class="form-control" id="gnss_survey_dur" value="5">
+                                                        <span class="input-group-text">mins</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_gnss_survey_acc" class="input-group-text input-label">Accuracy</span>
+                                                        <input type="number" class="form-control" id="gnss_survey_acc" value="100">
+                                                        <span class="input-group-text">mm</span>
+                                                    </div>
+
+                                                    <div class="mb-3"></div>
+                                                    <div class="input-group mb-1">
+                                                        <button class="btn btn-outline-primary mx-auto w-50" type="button" id="btn_gnss_mode_set_survey">Start Survey Base</button>
+                                                    </div>
+                                                </div>
+                                                <div id="gnss_pane_fixed">
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_gnss_fixed_lat" class="input-group-text input-label">Latitude</span>
+                                                        <input type="number" class="form-control" id="gnss_fixed_lat" value="">
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_gnss_fixed_lon" class="input-group-text input-label">Longitude</span>
+                                                        <input type="number" class="form-control" id="gnss_fixed_lon" value="">
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_gnss_fixed_alt" class="input-group-text input-label">Altitude</span>
+                                                        <input type="number" class="form-control" id="gnss_fixed_alt" value="">
+                                                        <span class="input-group-text">m</span>
+                                                    </div>
+                                                    <div class="input-group mb-1 advanced d-none">
+                                                        <span class="input-group-text input-label">ASL</span>
+                                                        <input type="number" class="form-control" id="gnss_fixed_asl" value="" disabled>
+                                                        <span class="input-group-text">m</span>
+                                                    </div>
+                                                    <div class="input-group mb-1 advanced d-none">
+                                                        <span class="input-group-text input-label">GeoSep</span>
+                                                        <input type="number" class="form-control" id="gnss_fixed_gsep" value="" disabled>
+                                                        <span class="input-group-text">m</span>
+                                                    </div>
+                                                    <div class="mb-3"></div>
+                                                    <div class="input-group mb-1">
+                                                        <button class="btn btn-outline-primary w-50" type="button" id="btn_gnss_use_cur_pos">Use Current Position</button>
+                                                        <button class="btn btn-outline-primary w-50" type="button" id="btn_gnss_mode_set_fixed">Start Fixed Base</button>
+                                                    </div>
+                                                    <div class="mb-3"></div>
+                                                    <div class="input-group mb-1">
+                                                        <div class="form-check flex-fill">
+                                                            <input class="form-check-input" type="checkbox" value="" id="ntrip_caster_enable" checked disabled>
+                                                            <label id="lbl_ntrip_output_rtcm3" class="form-check-label" for="ntrip_caster_enable">Output RTCM3 correction</label>
+                                                        </div>
+                                                        <span class="" id="ntrip_cas_status">Unknown</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span id="lbl_ntrip_caster_info">NTRIP Caster Address and Port:</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <input type="text" class="form-control flex-fill" id="system_hostname" value="" disabled>
+                                                        <span class="input-group-text">2101</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <input type="text" class="form-control flex-fill" value="192.168.4.1" disabled>
+                                                        <span class="input-group-text">2101</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <input type="text" class="form-control flex-fill" id="ntrip_caster_ip" value="" disabled>
+                                                        <span class="input-group-text">2101</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span class="input-group-text flex-fill">Username</span>
+                                                        <span class="input-group-text">BASE</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span class="input-group-text flex-fill">Password</span>
+                                                        <span class="input-group-text">BASE</span>
+                                                    </div>
+                                                    <div class="input-group mb-1">
+                                                        <span class="input-group-text flex-fill">Mount Point</span>
+                                                        <span class="input-group-text">BASE</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <div>
+                                <span id="lbl_wifi_network" class="d-inline-block card-title">WiFi Network</span>
+                                <span class="d-inline-block float-end" id="wifi_status">Disconnected</span>
+                            </div>
+                            <div class="small">
+                                <span id="lbl_wifi_need_reconnect">May need to reconect to device</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="input-group mb-1">
+                                <span id="lbl_wifi_ssid" class="input-group-text input-label">Access Point</span>
+                                <input type="text" class="form-control" id="wifi_ssid" value="" required>
+                            </div>
+                            <div class="input-group mb-1">
+                                <span id="lbl_wifi_pwd" class="input-group-text input-label">Password</span>
+                                <input type="text" class="form-control" id="wifi_pwd" value="" required>
+                            </div>
+                            <div class="mb-3"></div>
+                            <div class="input-group mb-1">
+                                <button class="btn btn-outline-primary mx-auto w-50" type="button" id="btn_wifi_connect">Connect</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <div>
+                                <span id="lbl_system_settings" class="d-inline-block card-title">System Settings</span>
+                                <span class="d-inline-block float-end" id="system_version">&nbsp;</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col d-flex">
+                                    <div class="input-group">
+                                        <label id="lbl_language_select" for="language-select" class="input-group-text">Language:</label>
+                                        <select id="language-select" class="form-select" onchange="changeLanguage()">
+                                            <option value="vi" selected>Tiếng Việt / Vietnamese</option>
+                                            <option value="en">English / Tiếng Anh</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col d-flex">
+                                    <div class="form-check form-switch d-inline-block">
+                                        <input class="form-check-input" type="checkbox" id="system_status_enable" checked>
+                                        <label id="lbl_system_status_enable" class="form-check-label" for="system_status_enable">Update status from device</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-12 advanced d-none">
+                                    <span class="small" id="system_status_response"></span>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col d-flex">
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn_system_save">Save</button>
+                                </div>
+                                <div class="col d-flex">
+                                    <button class="btn btn-outline-danger flex-fill" type="button" id="btn_system_clear_settings">Clear</button>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col d-flex">
+                                    <div class="form-check form-switch d-inline-block">
+                                        <input class="form-check-input" type="checkbox" id="system_advanced_enable">
+                                        <label class="form-check-label" for="system_advanced_enable" id="lbl_system_advanced_info">Advanced Info</label>
+                                    </div>
+                                </div>
+                                <div class="col d-flex">
+                                    <button class="btn btn-outline-danger flex-fill" type="button" id="btn_system_restart">Restart</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </form>
+        <div class="modal fade" id="custom_modal" tabindex="-1" aria-labelledby="custom_modal_label" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="txt_custom_modal_title">Confirmation</h5>
+                    </div>
+                    <div class="modal-body" id="txt_custom_modal_body">
+                        <!-- Prompt message will be inserted here -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn_custom_modal_cancel">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="btn_custom_modal_ok">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="bootstrap.bundle.min.js"></script>
+    <script type="text/javascript">
+        const translations = {
+            vi: {
+                lbl_gnss_status: "Tọa độ GNSS",
+                lbl_gnss_lat: "Vĩ độ",
+                lbl_gnss_lon: "Kinh độ",
+                lbl_gnss_alt: "Độ cao",
+                lbl_std_deviation: "Độ lệch chuẩn",
+                lbl_gnss_siv: "Vệ tinh",
+                lbl_operation_mode:  "Chế độ hoạt động",
+                btn_gnss_tab_rover: "Di Chuyển (Rover)",
+                btn_gnss_tab_base: "Cố Định (Base)",
+                lbl_ntrip_cli_enable: "Sử dụng dịch vụ NTRIP",
+                lbl_ntrip_cli_ip: "IP/Host",
+                lbl_ntrip_cli_port: "Cổng",
+                lbl_ntrip_cli_user: "Người dùng",
+                lbl_ntrip_cli_pwd: "Mật khẩu",
+                lbl_ntrip_cli_mnt: "Tên trạm",
+                btn_ntrip_cli_get_mnts: "Danh sách Trạm",
+                btn_ntrip_cli_connect: "Kết nối",
+                btn_gnss_mode_set_rover: "Bắt đầu chế độ Di Chuyển",
+                lbl_gnss_base_fixed_enable: "Đặt vị trí cố định của trạm",
+                lbl_survey_in_option: "Tuỳ chọn Survey-in",
+                lbl_gnss_survey_dur: "Thời gian",
+                lbl_gnss_survey_acc: "Độ chính xác",
+                btn_gnss_mode_set_survey: "Bắt đầu Survey Base",
+                lbl_gnss_fixed_lat: "Vĩ độ",
+                lbl_gnss_fixed_lon: "Kinh độ",
+                lbl_gnss_fixed_alt: "Độ cao",
+                btn_gnss_use_cur_pos: "Sử dụng vị trí hiện tại",
+                btn_gnss_mode_set_fixed: "Bắt đầu chế độ Cố Định",
+                lbl_ntrip_output_rtcm3: "Xuất dữ liệu sửa đổi RTCM3",
+                lbl_ntrip_caster_info: "Địa chỉ và cổng NTRIP Caster:",
+                lbl_wifi_network: "Mạng WiFi",
+                lbl_wifi_need_reconnect: "Có thể cần kết nối lại thiết bị",
+                lbl_wifi_ssid: "Tên mạng",
+                lbl_wifi_pwd: "Mật khẩu",
+                btn_wifi_connect: "Kết nối",
+                lbl_system_settings: "Cài đặt hệ thống",
+                lbl_language_select: "Ngôn ngữ",
+                lbl_system_status_enable: "Cập nhật trạng thái từ thiết bị",
+                btn_system_save: "Lưu cài đặt",
+                btn_system_clear_settings: "Xóa cài đặt",
+                lbl_system_advanced_info: "Thông tin nâng cao",
+                btn_system_restart: "Khởi động lại",
+                txt_connect: "Kết nối",
+                txt_disconnect: "Ngắt kết nối",
+                txt_connect_to_ntrip_caster: "Kết nối đến Caster NTRIP?",
+                txt_disconnect_from_ntrip_caster: "Ngắt kết nối từ Caster NTRIP?",
+                txt_connect_to_wifi_network: "Kết nối đến mạng WiFi?",
+                txt_disconnect_from_wifi_network: "Ngắt kết nối từ mạng WiFi?",
+                txt_start_system_in_rover_mode: "Khởi động hệ thống ở chế độ Rover?",
+                txt_start_system_in_base_survey_mode: "Khởi động hệ thống ở chế độ Survey Base?",
+                txt_start_system_in_based_fixed_mode: "Khởi động hệ thống ở chế độ Cố Định?",
+                txt_save_current_settings: "Lưu cài đặt hiện tại?",
+                txt_clear_current_settings: "Xóa cài đặt hiện tại?\nHệ thống sẽ khởi động lại!",
+                txt_restart_system: "Khởi động lại hệ thống?",
+                txt_custom_modal_title: "Xác nhận",
+                btn_custom_modal_cancel: "Hủy",
+                btn_custom_modal_ok: "OK",
+            },
+            en: {
+                lbl_gnss_status: "GNSS Position",
+                lbl_gnss_lat: "Latitude",
+                lbl_gnss_lon: "Longitude",
+                lbl_gnss_alt: "Altitude",
+                lbl_std_deviation: "Standard Deviation",
+                lbl_gnss_siv: "Satellites",
+                lbl_operation_mode: "Operation Mode",
+                btn_gnss_tab_rover: "Rover",
+                btn_gnss_tab_base: "Base",
+                lbl_ntrip_cli_enable: "Use NTRIP service",
+                lbl_ntrip_cli_ip: "IP/Host",
+                lbl_ntrip_cli_port: "Port",
+                lbl_ntrip_cli_user: "Username",
+                lbl_ntrip_cli_pwd: "Password",
+                lbl_ntrip_cli_mnt: "Mount Pt.",
+                btn_ntrip_cli_get_mnts: "Get Mounts",
+                btn_ntrip_cli_connect: "Connect",
+                btn_gnss_mode_set_rover: "Start Rover",
+                lbl_gnss_base_fixed_enable: "Set Base's position manually",
+                lbl_survey_in_option: "Survey-in Option",
+                lbl_gnss_survey_dur: "Duration",
+                lbl_gnss_survey_acc: "Accuracy",
+                btn_gnss_mode_set_survey: "Start Survey Base",
+                btn_gnss_use_cur_pos: "Use Current Position",
+                btn_gnss_mode_set_fixed: "Start Fixed Base",
+                lbl_ntrip_output_rtcm3: "Output RTCM3 correction",
+                lbl_ntrip_caster_info: "NTRIP Caster Address and Port:",
+                lbl_wifi_network: "WiFi Network",
+                lbl_wifi_need_reconnect: "May need to reconnect to device",
+                lbl_wifi_ssid: "Access Point",
+                lbl_wifi_pwd: "Password",
+                btn_wifi_connect: "Connect",
+                lbl_system_settings: "System Settings",
+                lbl_language_select: "Language",
+                lbl_system_status_enable: "Update status from device",
+                btn_system_save: "Save Settings",
+                btn_system_clear_settings: "Clear Settings",
+                lbl_system_advanced_info: "Advanced Info",
+                btn_system_restart: "Restart",
+                txt_connect: "Connect",
+                txt_disconnect: "Disconnect",
+                txt_connect_to_ntrip_caster: "Connect to NTRIP Caster?",
+                txt_disconnect_from_ntrip_caster: "Disconnect from NTRIP Caster?",
+                txt_connect_to_wifi_network: "Connect to WiFi network?",
+                txt_disconnect_from_wifi_network: "Disconnect from WiFi network?",
+                txt_start_system_in_rover_mode: "Start system in Rover mode?",
+                txt_start_system_in_base_survey_mode: "Start system in Base-Survey mode?",
+                txt_start_system_in_based_fixed_mode: "Start system in Based-Fixed mode?",
+                txt_save_current_settings: "Save current settings?",
+                txt_clear_current_settings: "Clear current settings?\nSystem will restart!",
+                txt_restart_system: "Restart system?",
+                txt_custom_modal_title: "Confirmation",
+                btn_custom_modal_cancel: "Cancel",
+                btn_custom_modal_ok: "OK",
+            },
+        };
+
+        function getLanguage() {
+            return document.getElementById('language-select').value;
+        }
+
+        function changeLanguage() {
+            const language = getLanguage();
+            for (const key in translations[language]) {
+                const element = document.getElementById(key);
+                if (element) {
+                    element.textContent = translations[language][key];
+                }
+            }
+        }
+
+        function showCustomModal(prompt, onOk) {
+            const modalBody = document.getElementById('txt_custom_modal_body');
+            const okButton = document.getElementById('btn_custom_modal_ok');
+
+            modalBody.textContent = prompt;
+
+            const modal = new bootstrap.Modal(document.getElementById('custom_modal'));
+            modal.show();
+
+            okButton.onclick = function () {
+                onOk();
+                modal.hide();
+            };
+        }
+
+        // this function is called once the page is loaded
+        $(document).ready(function () {
+            changeLanguage();
+
+            const newline = "\n";
+            const carret = "\r";
+
+            let form = $("#form");
+
+            // GNSS Position
+            let gnss_status = form.find("#gnss_status");
+            let gnss_indicator = form.find("#gnss_indicator");
+            let battery_indicator = form.find("#battery_indicator");
+            let gnss_lat = form.find("#gnss_lat");
+            let gnss_lon = form.find("#gnss_lon");
+            let gnss_alt = form.find("#gnss_alt");
+            let gnss_asl = form.find("#gnss_asl");
+            let gnss_gsep = form.find("#gnss_gsep");
+            let gnss_siv = form.find("#gnss_siv");
+            let gnss_sigma_lat = form.find("#gnss_sigma_lat");
+            let gnss_sigma_lon = form.find("#gnss_sigma_lon");
+            let gnss_sigma_alt = form.find("#gnss_sigma_alt");
+
+            // GNSS Mode
+            let gnss_mode = form.find("#gnss_mode");
+
+            let ntrip_cli_enable = form.find("#ntrip_cli_enable");
+            let ntrip_cli_status = form.find("#ntrip_cli_status");
+            let ntrip_cli_panel = form.find("#ntrip_cli_panel");
+            let ntrip_cli_ip = form.find("#ntrip_cli_ip");
+            let ntrip_cli_port = form.find("#ntrip_cli_port");
+            let ntrip_cli_user = form.find("#ntrip_cli_user");
+            let ntrip_cli_pwd = form.find("#ntrip_cli_pwd");
+            let ntrip_cli_mnt = form.find("#ntrip_cli_mnt");
+            let ntrip_cli_get_mnts = form.find("#btn_ntrip_cli_get_mnts");
+            let ntrip_cli_connect = form.find("#btn_ntrip_cli_connect");
+
+            let gnss_mode_set_rover = form.find("#btn_gnss_mode_set_rover");
+            let gnss_base_fixed_enable = form.find("#gnss_base_fixed_enable");
+
+            let gnss_pane_survey = form.find("#gnss_pane_survey");
+            let gnss_survey_dur = form.find("#gnss_survey_dur");
+            let gnss_survey_acc = form.find("#gnss_survey_acc");
+            let gnss_mode_set_survey = form.find("#btn_gnss_mode_set_survey");
+
+            let gnss_pane_fixed = form.find("#gnss_pane_fixed");
+            let gnss_fixed_lat = form.find("#gnss_fixed_lat");
+            let gnss_fixed_lon = form.find("#gnss_fixed_lon");
+            let gnss_fixed_alt = form.find("#gnss_fixed_alt");
+            let gnss_fixed_asl = form.find("#gnss_fixed_asl");
+            let gnss_fixed_gsep = form.find("#gnss_fixed_gsep");
+            let gnss_use_cur_pos = form.find("#btn_gnss_use_cur_pos");
+            let gnss_mode_set_fixed = form.find("#btn_gnss_mode_set_fixed");
+
+            let ntrip_caster_enable = form.find("#ntrip_caster_enable");
+            let ntrip_cas_status = form.find("#ntrip_cas_status");
+            let ntrip_caster_ip = form.find("#ntrip_caster_ip");
+
+            ntrip_cli_enable.click(function () {
+                if (this.checked) {
+                    ntrip_cli_panel.removeClass("d-none");
+                } else {
+                    ntrip_cli_panel.addClass("d-none");
+                }
+            })
+
+            ntrip_cli_get_mnts.click(function () {
+                $.ajax({
+                    url: "/action",
+                    type: "POST",
+                    contentType: "text/plain",
+                    data: "ntrip_cli_get_mnts" + newline +
+                        ntrip_cli_ip.val() + newline +
+                        ntrip_cli_port.val() + newline +
+                        ntrip_cli_user.val() + newline +
+                        ntrip_cli_pwd.val() + newline,
+                    success: function (response) {
+
+                        let ntrip_cli_mnt_timer = setInterval(function () {
+                            $.ajax({
+                                url: "/config",
+                                type: "GET",
+                                contentType: "text/plain",
+                                data: "ntrip_cli_get_mnts",
+                                success: function (response) {
+                                    if (response[0] == '1') {
+                                        clearInterval(ntrip_cli_mnt_timer);
+                                        ntrip_cli_mnt.empty();
+                                        let ntrip_cli_table = response.split(carret);
+                                        if (ntrip_cli_table.length > 1) {
+                                            ntrip_cli_table.shift();
+                                            ntrip_cli_table.forEach(source => {
+                                                if (source != '') {
+                                                    ntrip_cli_mnt.append(new Option(source, source));
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                            });
+                        }, 2000)
+                    }
+                });
+            });
+
+            ntrip_cli_connect.click(function () {
+                prompt = translations[getLanguage()].txt_connect_to_ntrip_caster;
+                action = "connect";
+                if (ntrip_cli_connect.text() == translations[getLanguage()].txt_disconnect) {
+                    prompt = translations[getLanguage()].txt_disconnect_from_ntrip_caster;
+                    action = "disconnect";
+                }
+                showCustomModal(prompt, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "ntrip_cli_" + action + newline +
+                            ntrip_cli_ip.val() + newline +
+                            ntrip_cli_port.val() + newline +
+                            ntrip_cli_user.val() + newline +
+                            ntrip_cli_pwd.val() + newline +
+                            ntrip_cli_mnt.val() + newline
+                    });
+                });
+            });
+
+            gnss_mode_set_rover.click(function () {
+                showCustomModal(translations[getLanguage()].txt_start_system_in_rover_mode, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "gnss_mode_set_rover" + newline
+                    });
+                });
+            });
+
+            gnss_base_fixed_enable.click(function () {
+                if (this.checked) {
+                    gnss_pane_survey.addClass("d-none");
+                    gnss_pane_fixed.removeClass("d-none");
+                } else {
+                    gnss_pane_survey.removeClass("d-none");
+                    gnss_pane_fixed.addClass("d-none");
+                }
+            })
+
+            gnss_mode_set_survey.click(function () {
+                showCustomModal(translations[getLanguage()].txt_start_system_in_base_survey_mode, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "gnss_mode_set_survey" + newline +
+                            gnss_survey_dur.val() + newline +
+                            gnss_survey_acc.val() + newline
+                    });
+                });
+            });
+
+            gnss_use_cur_pos.click(function () {
+                gnss_fixed_lat.val(gnss_lat.val());
+                gnss_fixed_lon.val(gnss_lon.val());
+                gnss_fixed_alt.val(gnss_alt.val());
+                gnss_fixed_asl.val(gnss_asl.val());
+                gnss_fixed_gsep.val(gnss_gsep.val());
+            });
+
+            gnss_mode_set_fixed.click(function () {
+                showCustomModal(translations[getLanguage()].txt_start_system_in_based_fixed_mode, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "gnss_mode_set_fixed" + newline +
+                            parseFloat(gnss_fixed_lat.val()).toFixed(9) + newline +
+                            parseFloat(gnss_fixed_lon.val()).toFixed(9) + newline +
+                            parseFloat(gnss_fixed_alt.val()).toFixed(3) + newline +
+                            parseFloat(gnss_fixed_asl.val()).toFixed(3) + newline +
+                            parseFloat(gnss_fixed_gsep.val()).toFixed(3) + newline
+                    });
+                });
+            })
+
+            ntrip_caster_enable.click(function () {
+                alert("N/A");
+            })
+
+            // WiFi settings
+            let wifi_status = form.find("#wifi_status");
+            let wifi_ssid = form.find("#wifi_ssid");
+            let wifi_pwd = form.find("#wifi_pwd");
+            let wifi_connect = form.find("#btn_wifi_connect");
+
+            wifi_connect.click(function () {
+                prompt = translations[getLanguage()].txt_connect_to_wifi_network;
+                action = "connect";
+                if (wifi_connect.text() == translations[getLanguage()].txt_disconnect) {
+                    prompt = translations[getLanguage()].txt_disconnect_from_wifi_network;
+                    action = "disconnect";
+                }
+                showCustomModal(prompt, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "wifi_" + action + newline +
+                            wifi_ssid.val() + newline +
+                            wifi_pwd.val() + newline
+                    });
+                });
+            });
+
+            // Get status
+            const STATUS = {
+                GNSS_GGA: 0,
+                GNSS_GST: 1,
+                GNSS_MODE: 2,
+                NTRIP_CLI_STATUS: 3,
+                NTRIP_CAS_STATUS: 4,
+                WIFI_STATUS: 5,
+                BATTERY: 6,
+            }
+
+            function nmea2dec(nmea, dir) {
+                let dot = nmea.indexOf(".");
+                let dd = 0;
+                let mm = 0.0;
+
+                if (dot > 2) {
+                    dd = parseInt(nmea.substring(0, dot - 2));
+                    mm = parseFloat(nmea.substring(dot - 2));
+                }
+                else {
+                    mm = parseFloat(nmea);
+                }
+
+                let dec = dd + mm / 60;
+
+                if (dir == 'N' || dir == 'E')
+                    return dec;
+                else
+                    return -dec;
+
+            }
+
+            function isIP(text) {
+                let parts = text.split(".");
+                return parts.length == 4;
+            }
+
+            let gnss_status_missing = 0;
+            let system_status_response = form.find("#system_status_response");
+
+            function heart_beat() {
+                gnss_status_missing++;
+
+                if (gnss_status_missing > 2) {
+                    gnss_indicator.addClass("bg-danger");
+                }
+            }
+
+            let heart_beat_timer = setInterval(heart_beat, 5000);
+
+            function query_status() {
+                $.ajax({
+                    url: "/status",
+                    type: "GET",
+                    contentType: "text/plain",
+                    success: function (response, status) {
+                        system_status_response.text(response);
+
+                        let data = response.split(newline);
+                        // ordered items
+
+                        // GNSS Status
+                        gnss_status_missing = 0;
+                        gnss_indicator.removeClass("bg-danger");
+                        gnss_indicator.toggleClass("bg-primary");
+                        gnss_indicator.toggleClass("bg-grey");
+
+                        let gnss_gga = data[STATUS.GNSS_GGA].split(",");
+
+                        let gnss_status_val = parseInt(gnss_gga[6]);
+                        switch (gnss_status_val) {
+                            case 0:
+                                gnss_status.text("No Fix");
+                                break;
+                            case 1:
+                                gnss_status.text("Single");
+                                break;
+                            case 2:
+                                gnss_status.text("Float");
+                                break;
+                            case 4:
+                                gnss_status.text("RTK Fix");
+                                break;
+                            case 5:
+                                gnss_status.text("RTK Float");
+                                break;
+                            default:
+                                gnss_status.text("Unknown");
+                                break;
+                        }
+
+                        let gnss_lat_val = nmea2dec(gnss_gga[2], gnss_gga[3]);
+                        gnss_lat.val(gnss_lat_val.toFixed(9));
+
+                        let gnss_lon_val = nmea2dec(gnss_gga[4], gnss_gga[5]);
+                        gnss_lon.val(gnss_lon_val.toFixed(9));
+
+                        let gnss_asl_val = parseFloat(gnss_gga[9]);
+                        gnss_asl.val(gnss_asl_val.toFixed(3));
+
+                        let gnss_gsep_val = parseFloat(gnss_gga[11]);
+                        gnss_gsep.val(gnss_gsep_val.toFixed(3));
+                        gnss_fixed_gsep.val(gnss_gsep.val());
+
+                        let gnss_alt_val = gnss_gsep_val + gnss_asl_val;
+                        gnss_alt.val(gnss_alt_val.toFixed(3));
+
+                        let gnss_fixed_asl_val = parseFloat(gnss_fixed_alt.val()) - parseFloat(gnss_fixed_gsep.val());
+                        gnss_fixed_asl.val(gnss_fixed_asl_val.toFixed(3));
+
+                        let gnss_siv_val = parseInt(gnss_gga[7]);
+                        gnss_siv.text(gnss_siv_val);
+
+                        let gnss_gst = data[STATUS.GNSS_GST].split(",");
+
+                        let gnss_sigma_lat_val = parseFloat(gnss_gst[6]);
+                        gnss_sigma_lat.val(gnss_sigma_lat_val.toFixed(3));
+
+                        let gnss_sigma_lon_val = parseFloat(gnss_gst[7]);
+                        gnss_sigma_lon.val(gnss_sigma_lon_val.toFixed(3));
+
+                        let gnss_sigma_alt_val = parseFloat(gnss_gst[8]);
+                        gnss_sigma_alt.val(gnss_sigma_alt_val.toFixed(3));
+
+                        // GNSS Mode
+                        let gnss_mode_val = data[STATUS.GNSS_MODE];
+                        gnss_mode.val(gnss_mode_val);
+
+                        // NTRIP Client Status
+                        let ntrip_cli_status_txt = data[STATUS.NTRIP_CLI_STATUS];
+                        ntrip_cli_status.text(ntrip_cli_status_txt);
+                        if (ntrip_cli_status_txt == "Unavailable") {
+                            ntrip_cli_connect.prop("disabled", true);
+                            ntrip_cli_get_mnts.prop("disabled", true);
+                        } else {
+                            ntrip_cli_connect.prop("disabled", false);
+                            ntrip_cli_get_mnts.prop("disabled", false);
+                        }
+
+                        if (ntrip_cli_status_txt == "Connected") {
+                            ntrip_cli_connect.text(translations[getLanguage()].txt_disconnect);
+                            ntrip_cli_connect.removeClass("btn-outline-primary");
+                            ntrip_cli_connect.addClass("btn-outline-danger");
+                        } else {
+                            ntrip_cli_connect.text(translations[getLanguage()].txt_connect);
+                            ntrip_cli_connect.addClass("btn-outline-primary");
+                            ntrip_cli_connect.removeClass("btn-outline-danger");
+                        }
+
+                        // NTRIP Caster Status
+                        let ntrip_cas_status_txt = data[STATUS.NTRIP_CAS_STATUS];
+                        if (ntrip_cas_status_txt == "0" || ntrip_cas_status_txt == "1") {
+                            ntrip_cas_status.text("" + ntrip_cas_status_txt + " client")
+                        } else {
+                            ntrip_cas_status.text("" + ntrip_cas_status_txt + " clients")
+                        }
+
+                        // WIFI Status
+                        let wifi_status_txt = data[STATUS.WIFI_STATUS];
+                        wifi_status.text(wifi_status_txt);
+
+                        if (wifi_status_txt == "Connected" || isIP(wifi_status_txt)) {
+                            wifi_connect.text(translations[getLanguage()].txt_disconnect);
+                            wifi_connect.removeClass("btn-outline-primary");
+                            wifi_connect.addClass("btn-outline-danger");
+                        } else {
+                            wifi_connect.text(translations[getLanguage()].txt_connect);
+                            wifi_connect.addClass("btn-outline-primary");
+                            wifi_connect.removeClass("btn-outline-danger");
+                        }
+
+                        if (isIP(wifi_status_txt)) {
+                            ntrip_caster_ip.val(wifi_status_txt);
+                        } else {
+                            ntrip_caster_ip.val("");
+                        }
+
+                        // BATTERY Status
+                        let battery_status_txt = data[STATUS.BATTERY];
+                        battery_indicator.text(battery_status_txt + "%");
+                    }
+                });
+            }
+
+            let query_status_timer = setInterval(query_status, 1000);
+
+            // System Settings
+            let system_hostname = form.find("#system_hostname");
+            let system_version = form.find("#system_version");
+
+            let system_status_enable = form.find("#system_status_enable");
+            system_status_enable.prop("checked", true);
+            system_status_enable.click(function () {
+                if (this.checked) {
+                    query_status_timer = setInterval(query_status, 1000);
+                } else {
+                    clearInterval(query_status_timer);
+                    gnss_indicator.removeClass("bg-primary");
+                    gnss_indicator.addClass("bg-grey");
+                }
+            });
+
+            let system_save = form.find("#btn_system_save");
+            system_save.click(function () {
+                showCustomModal(translations[getLanguage()].txt_save_current_settings, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "system_save" + newline +
+                            "dummy" + newline +
+                            "dummy" + newline +
+                            wifi_ssid.val() + newline +
+                            wifi_pwd.val() + newline +
+                            ntrip_cli_ip.val() + newline +
+                            ntrip_cli_port.val() + newline +
+                            ntrip_cli_user.val() + newline +
+                            ntrip_cli_pwd.val() + newline +
+                            ntrip_cli_mnt.val() + newline +
+                            parseFloat(gnss_fixed_lat.val()).toFixed(9) + newline +
+                            parseFloat(gnss_fixed_lon.val()).toFixed(9) + newline +
+                            parseFloat(gnss_fixed_alt.val()).toFixed(3) + newline
+                    });
+                });
+            });
+
+            let system_restart = form.find("#btn_system_restart");
+            system_restart.click(function () {
+                showCustomModal(translations[getLanguage()].txt_restart_system, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "system_restart"
+                    });
+                });
+            });
+
+            let system_advanced_enable = form.find("#system_advanced_enable");
+            system_advanced_enable.prop("checked", false);
+            let advanced = form.find(".advanced");
+            system_advanced_enable.click(function () {
+                if (this.checked) {
+                    advanced.removeClass("d-none");
+                } else {
+                    advanced.addClass("d-none");
+                }
+            });
+
+
+            let system_clear_settings = form.find("#btn_system_clear_settings");
+            system_clear_settings.click(function () {
+                showCustomModal(translations[getLanguage()].txt_clear_current_settings, function () {
+                    $.ajax({
+                        url: "/action",
+                        type: "POST",
+                        contentType: "text/plain",
+                        data: "system_clear_settings"
+                    });
+                });
+            });
+
+            const CONFIG = {
+                HOSTNAME: 0,
+                VERSION: 1,
+                WIFI_SSID: 2,
+                WIFI_PWD: 3,
+                NTRIP_IP: 4,
+                NTRIP_PORT: 5,
+                NTRIP_USER: 6,
+                NTRIP_PWD: 7,
+                NTRIP_MNT: 8,
+                BASE_LAT: 9,
+                BASE_LON: 10,
+                BASE_ALT: 11,
+            }
+
+            // Load configs
+            $.ajax({
+                url: "/config",
+                type: "GET",
+                contentType: "text/plain",
+                success: function (response, status) {
+                    let data = response.split(newline);
+
+                    // ordered items
+                    system_hostname.val(data[CONFIG.HOSTNAME] + ".local");
+                    system_version.text(data[CONFIG.VERSION]);
+
+                    wifi_ssid.val(data[CONFIG.WIFI_SSID]);
+                    wifi_pwd.val(data[CONFIG.WIFI_PWD]);
+
+                    ntrip_cli_ip.val(data[CONFIG.NTRIP_IP]);
+                    ntrip_cli_port.val(data[CONFIG.NTRIP_PORT]);
+                    ntrip_cli_user.val(data[CONFIG.NTRIP_USER]);
+                    ntrip_cli_pwd.val(data[CONFIG.NTRIP_PWD]);
+                    ntrip_cli_mnt.empty();
+                    ntrip_cli_mnt.append(new Option(data[CONFIG.NTRIP_MNT], data[CONFIG.NTRIP_MNT]));
+
+                    gnss_fixed_lat.val(parseFloat(data[CONFIG.BASE_LAT]).toFixed(9));
+                    gnss_fixed_lon.val(parseFloat(data[CONFIG.BASE_LON]).toFixed(9));
+                    gnss_fixed_alt.val(parseFloat(data[CONFIG.BASE_ALT]).toFixed(3));
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

@@ -20,7 +20,13 @@ This firmware is developed for [ESP32-S3-WROOM-1-N16R8](https://documentation.es
 - 36 GPIOs
 - SPI, LCD interface, Camera interface, UART, I2C, I2S, remote control, pulse counter, LED PWM, full-speed USB 2.0 OTG, USB Serial/JTAG controller, MCPWM, SD/MMC host controller, GDMA, TWAI® controller (compatible with ISO 11898-1), ADC, touch sensor,temperature sensor, timers and watchdogs
 
-Using `idf.py menuconfig` to set:
+__SDK Config__
+
+Run sdk config:
+```sh
+idf.py menuconfig
+```
+
 - Serial flasher config
   - Flash SPI Mode (QIO)
   - Flash Sampling Mode (STR Mode)
@@ -32,6 +38,10 @@ Using `idf.py menuconfig` to set:
     - Set RAM clock speed (80MHz clock speed)
   - ESP System Settings
     - CPU frequency (240 MHz)
+- Partition Table
+  - Partition Table (Custom partition table CSV)
+  - Custom partition CSV file (partitions.csv)
+  - Generate an MD5 checksum (No)
 
 Save as the default config:
 ```sh
@@ -41,8 +51,23 @@ idf.py save-defconfig
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_MD5=n
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 ```
+
+Add packages:
+```sh
+idf.py add-dependency "espressif/mdns^1.10.1"
+```
+
+## Development
+
+Prepare:
+
+1. Select ESP-IDF version `5.5.2`, then the target chip `esp32s3`
+2. Add `.vscode` subdirectory files
+3. For testing, add a Python virtual environment `python3 -m venv .venv`, activate it `source .venv/bin/activate` and install `flask`, and run the test server `python3 scripts/server_dev.py`
