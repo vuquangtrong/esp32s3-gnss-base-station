@@ -55,14 +55,12 @@
                 <div class="col-xl-6">
                     <div class="card mb-3">
                         <div class="card-header">
-                            <div>
+                            <div class="d-flex justify-content-between align-items-center">
                                 <span id="lbl_gnss_status" class="d-inline-block card-title">GNSS Position</span>
-                                <div class="d-inline-block float-end ">
-                                    <span class="badge bg-grey text-dark ms-1" id="battery_indicator">0</span>
-                                </div>
-                                <div class="d-inline-block float-end ">
+                                <div class="d-flex align-items-center">
                                     <span id="gnss_status"></span>
                                     <span class="badge bg-grey ms-1" id="gnss_indicator">&nbsp;</span>
+                                    <span class="badge bg-grey text-dark ms-1" id="battery_indicator">0</span>
                                 </div>
                             </div>
                         </div>
@@ -305,7 +303,6 @@
                             <div class="row mb-3">
                                 <div class="col d-flex">
                                     <div class="input-group">
-                                        <label id="lbl_language_select" for="language-select" class="input-group-text">Language:</label>
                                         <select id="language-select" class="form-select" onchange="changeLanguage()">
                                             <option value="vi" selected>Tiếng Việt / Vietnamese</option>
                                             <option value="en">English / Tiếng Anh</option>
@@ -372,7 +369,7 @@
     <script type="text/javascript">
         const translations = {
             vi: {
-                lbl_gnss_status: "Tọa độ GNSS",
+                lbl_gnss_status: "Tọa độ trạm thu",
                 lbl_gnss_lat: "Vĩ độ",
                 lbl_gnss_lon: "Kinh độ",
                 lbl_gnss_alt: "Độ cao",
@@ -394,7 +391,7 @@
                 lbl_survey_in_option: "Tuỳ chọn Survey-in",
                 lbl_gnss_survey_dur: "Thời gian",
                 lbl_gnss_survey_acc: "Độ chính xác",
-                btn_gnss_mode_set_survey: "Bắt đầu Survey Base",
+                btn_gnss_mode_set_survey: "Bắt đầu chế độ Đo Tĩnh",
                 lbl_gnss_fixed_lat: "Vĩ độ",
                 lbl_gnss_fixed_lon: "Kinh độ",
                 lbl_gnss_fixed_alt: "Độ cao",
@@ -420,11 +417,11 @@
                 txt_disconnect_from_ntrip_caster: "Ngắt kết nối từ Caster NTRIP?",
                 txt_connect_to_wifi_network: "Kết nối đến mạng WiFi?",
                 txt_disconnect_from_wifi_network: "Ngắt kết nối từ mạng WiFi?",
-                txt_start_system_in_rover_mode: "Khởi động hệ thống ở chế độ Rover?",
-                txt_start_system_in_base_survey_mode: "Khởi động hệ thống ở chế độ Survey Base?",
+                txt_start_system_in_rover_mode: "Khởi động hệ thống ở chế độ Di Chuyển?",
+                txt_start_system_in_base_survey_mode: "Khởi động hệ thống ở chế độ Đo Tĩnh?",
                 txt_start_system_in_based_fixed_mode: "Khởi động hệ thống ở chế độ Cố Định?",
                 txt_save_current_settings: "Lưu cài đặt hiện tại?",
-                txt_clear_current_settings: "Xóa cài đặt hiện tại?\nHệ thống sẽ khởi động lại!",
+                txt_clear_current_settings: "Xóa cài đặt hiện tại? Hệ thống sẽ khởi động lại!",
                 txt_restart_system: "Khởi động lại hệ thống?",
                 txt_custom_modal_title: "Xác nhận",
                 btn_custom_modal_cancel: "Hủy",
@@ -480,7 +477,7 @@
                 txt_start_system_in_base_survey_mode: "Start system in Base-Survey mode?",
                 txt_start_system_in_based_fixed_mode: "Start system in Based-Fixed mode?",
                 txt_save_current_settings: "Save current settings?",
-                txt_clear_current_settings: "Clear current settings?\nSystem will restart!",
+                txt_clear_current_settings: "Clear current settings? System will restart!",
                 txt_restart_system: "Restart system?",
                 txt_custom_modal_title: "Confirmation",
                 btn_custom_modal_cancel: "Cancel",
