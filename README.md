@@ -4,9 +4,9 @@ Design and build a RTK GNSS Base Station to provide precise positioning service,
 
 ## Hardware
 
-### KiCAD
+### Design Tools
 
-Install:
+Install **KiCad**:
 
 ```sh
 sudo add-apt-repository ppa:kicad/kicad-9.0-releases
@@ -27,12 +27,11 @@ Parts:
 
   - Search for __Stock Type = In Stock__ and __Parts Type = Basic | Promotional Extended__ and __PCBA Type = Economic__
 
-  - Tool to download symbols, footprints and 3D models from LCSC to KiCAD:
+  - Use `easyeda2kicad` to download symbols, footprints and 3D models from LCSC to KiCAD:
 
     <details>
-    <summary>easyeda2kicad</summary>
 
-    Homepage: <https://github.com/enduity/easyeda2kicad>
+    https://github.com/enduity/easyeda2kicad>
 
     Install:
 
@@ -55,18 +54,19 @@ Parts:
     Then download parts from LCSC, for example, ESP32-S3-WROOM-1-N16R8 has LCSCID=C2913202:
 
     ```sh esp32-s3-gnss-base-station/hardware (.venv)
-    # ESP32-S3-WROOM-1-N16R8
     easyeda2kicad --lcsc_id C2913202 --full --output ./libs/LCSC --project-relative
     ```
 
     Add the LCSC libs into KiCAD projects:
 
-    - Goto Preferences > Manage Symbol Libraries, in Project Specific Libs, add `${KIPRJMOD}/libs/LCSC.kicad_sym`
-    - Goto Preferences > Manage Footprint Libraries, in Project Specific Libs, add `${KIPRJMOD}/libs/LCSC.pretty`
+    - Goto `Preferences` > `Manage Symbol Libraries`, in Project Specific Libs, add `${KIPRJMOD}/libs/LCSC.kicad_sym`
+    - Goto `Preferences` > `Manage Footprint Libraries`, in Project Specific Libs, add `${KIPRJMOD}/libs/LCSC.pretty`
 
     </details>
 
 ### Schematic
+
+**Components**:
 
 | Part                                                                                 | Link                                                                     |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
@@ -96,6 +96,44 @@ Parts:
 | Q&J CR1220 SMD Button And Strip Battery Connector CR1220-2                           | <https://jlcpcb.com/partdetail/QJ-CR12202/C70381>                        |
 | BAT WIRELESS 50Ω 6GHz SMB Female Connectors BWSMB-KE                                 | <https://jlcpcb.com/partdetail/BATWIRELESS-BWSMBKE/C5250063>             |
 
+**Schematic**
+
+![Schematic](hardware/schematic.png)
+
 ### PCB Layout
 
-https://jlcpcb.com/help/article/User-Guide-to-the-JLCPCB-Impedance-Calculator
+Layers:
+- Front Copper: Signal
+- Inner 1: GND
+- Inner 2: GND
+- Back Copper: Signal
+
+RF Path:
+- In ZED-F9P Integration manual, it mentions that RF input should ensure RF trace is tuned for 50 Ω to ensure adequate bandwidth and power matching
+- Board will be made by JLCPCB, refer their guidance at https://jlcpcb.com/help/article/User-Guide-to-the-JLCPCB-Impedance-Calculator to get the trace width, details in [RF Impedance Calculator](hardware/impedance_calculator.png)
+
+PCB Layout:
+
+![Layout](hardware/pcb_layout.png)
+
+The rendered images:
+
+<div style="display: flex; gap: 16px;">
+  <div style="flex: 1;">
+    <img src="hardware/pcb_front.png">
+  </div>
+  <div style="flex: 1;">
+    <img src="hardware/pcb_back.png">
+  </div>
+</div>
+
+The final board:
+
+<div style="display: flex; gap: 16px;">
+  <div style="flex: 1;">
+    <img src="hardware/order/Product%20JLCPCB.jpg">
+  </div>
+  <div style="flex: 1;">
+    <img src="hardware/order/Product%20Final.jpg">
+  </div>
+</div>
