@@ -1,0 +1,28 @@
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++20
+
+# Layout & indentation
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 160
+UseTab: Never
+
+# Braces & wrapping
+BreakBeforeBraces: Allman
+BreakConstructorInitializers: BeforeComma
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: None
+
+# Alignment
+AccessModifierOffset: -2
+AlignAfterOpenBracket: BlockIndent
+AlignConsecutiveMacros: true
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Includes
+SortIncludes: true

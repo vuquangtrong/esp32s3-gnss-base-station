@@ -2,6 +2,17 @@
 
 Design and build a RTK GNSS Base Station to provide precise positioning service, which sends RTCM messages over a self-hosted NTRIP web server or an external Radio module, supports micro SD Card storage for post-processing purposes.
 
+This project is developed on top of [ESP32-S3-WROOM-1-N16R8](https://documentation.espressif.com/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf), with below specifications:
+- Xtensa® dual-core 32-bit LX7 microprocessor with single precision FPU, up to 240 MHz
+- 384 KB ROM
+- 512 KB SRAM + 16 KB SRAM in RTC
+- Embedded 8 MB PSRAM (Octal SPI), up to 80 MHz
+- Integrated 16 MB Flash (Quad SPI), up to 80 MHz
+- 2.4 GHz Wi-Fi (802.11b/g/n, STA/AP/STA+AP, 150 Mbps) and Bluetooth 5 (BLE, Mesh, 2 Mbps)
+- SPI, LCD interface, Camera interface, UART, I2C, I2S, remote control, pulse counter, LED PWM, full-speed USB 2.0 OTG, USB Serial/JTAG controller, MCPWM, SD/MMC host controller, GDMA, TWAI® controller (compatible with ISO 11898-1), ADC, touch sensor,temperature sensor, timers and watchdogs
+- 36 GPIOs
+
+
 ## Hardware
 
 ### Design Tools
@@ -137,3 +148,32 @@ The final board:
     <img src="hardware/order/Product%20Final.jpg">
   </div>
 </div>
+
+------------------------------------------------------------
+
+## Firmware
+
+### Development Tools
+
+- IDE: Visual Studio Code + ESP-IDF Extenstion
+- Framework: ESP-IDF for ESP32-S3
+
+### ESP-IDF
+
+Install EIM:
+``` sh
+echo "deb [trusted=yes] https://dl.espressif.com/dl/eim/apt/ stable main" | sudo tee /etc/apt/sources.list.d/espressif.list
+sudo apt update
+sudo apt install eim
+```
+
+Install ESP-IDF SDK from EIM:
+- Install latest STABLE version, at the moment, it is 6.0.2. The online document for ESP32-S3 is at https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32s3/index.html
+- Use default settings
+
+Add OpenOCD udev rules:
+``` sh
+find ~/.espressif -type f -name "*.rules" -exec sudo cp -v {} /etc/udev/rules.d/ \;
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
