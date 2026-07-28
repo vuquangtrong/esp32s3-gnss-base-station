@@ -16,6 +16,8 @@ static nvs_handle_t g_nvs_handle = 0;
 static config_entry_t g_configs[CFG_MAX] = {
     [CFG_PRJ_VERSION] = {"prj_version", PROJECT_VERSION},
     [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},
+    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},
+    [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},
 };
 
 esp_err_t config_init(void)
@@ -87,6 +89,16 @@ const char* config_get(config_type_t key)
     if (key < CFG_MAX)
     {
         return g_configs[key].value;
+    }
+    ESP_LOGW(TAG, "Invalid config key: %d", key);
+    return NULL;
+}
+
+const char* config_name(config_type_t key)
+{
+    if (key < CFG_MAX)
+    {
+        return g_configs[key].name;
     }
     ESP_LOGW(TAG, "Invalid config key: %d", key);
     return NULL;
