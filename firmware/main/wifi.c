@@ -1,5 +1,8 @@
 #include "wifi.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #include "config.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -21,6 +24,8 @@ static const char* TAG_AP = "wifi.ap";
 static const char* TAG_STA = "wifi.sta";
 
 static EventGroupHandle_t s_wifi_event_group = NULL;
+static esp_netif_t* s_esp_netif_ap = NULL;
+static esp_netif_t* s_esp_netif_sta = NULL;
 static wifi_config_t s_wifi_ap_config = {};
 static wifi_config_t s_wifi_sta_config = {};
 static int s_wifi_sta_retry_num = 0;
@@ -51,28 +56,42 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
     {
         wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*)event_data;
         ESP_LOGW(TAG_STA, "Disconnected from AP, reason:%d", event->reason);
-        status_set(STT_STA_CONNECTED, "0");
         // Increase retry counter and attempt to reconnect if not exceeded max retries
         s_wifi_sta_retry_num++;
         if (s_wifi_sta_retry_num < WIFI_STA_RETRY_MAX)
         {
             ESP_LOGI(TAG_STA, "Retry to connect to the AP (%d/%d)", s_wifi_sta_retry_num, WIFI_STA_RETRY_MAX);
+            status_set(STT_STA_STATUS, "1");
             vTaskDelay(pdMS_TO_TICKS(1000));
             esp_wifi_connect();
         }
         else
         {
             ESP_LOGW(TAG_STA, "Failed to connect to the AP after %d attempts", WIFI_STA_RETRY_MAX);
+            status_set(STT_STA_STATUS, "0");
         }
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*)event_data;
         ESP_LOGI(TAG_STA, "Connected to AP, got IP:" IPSTR, IP2STR(&event->ip_info.ip));
-        status_set(STT_STA_CONNECTED, "1");
+        status_set(STT_STA_STATUS, "2");
         // Reset retry counter on successful connection
         s_wifi_sta_retry_num = 0;
+        // Save the connected SSID and password to config
+        config_set(CFG_WIFI_SSID, (const char*)s_wifi_sta_config.sta.ssid);
+        config_set(CFG_WIFI_PASSWORD, (const char*)s_wifi_sta_config.sta.password);
     }
+}
+
+esp_netif_t* wifi_get_ap_netif(void)
+{
+    return s_esp_netif_ap;
+}
+
+esp_netif_t* wifi_get_sta_netif(void)
+{
+    return s_esp_netif_sta;
 }
 
 esp_netif_t* wifi_init_softap(void)
@@ -100,7 +119,7 @@ esp_netif_t* wifi_init_softap(void)
 
     // set the soft AP configuration
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &s_wifi_ap_config));
-    ESP_LOGI(TAG_AP, "wifi_init_softap finished. SSID:%s password:%s", s_wifi_ap_config.ap.ssid, s_wifi_ap_config.ap.password);
+    ESP_LOGI(TAG_AP, "wifi_init_softap initialized. SSID:%s password:%s", s_wifi_ap_config.ap.ssid, s_wifi_ap_config.ap.password);
 
     return esp_netif_ap;
 }
@@ -119,7 +138,7 @@ esp_netif_t* wifi_init_sta(void)
 
     // set the station configuration
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &s_wifi_sta_config));
-    ESP_LOGI(TAG_STA, "wifi_init_sta finished.");
+    ESP_LOGI(TAG_STA, "wifi_init_sta initialized.");
 
     return esp_netif_sta;
 }
@@ -149,17 +168,17 @@ esp_err_t wifi_init(void)
     // ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
 
     ESP_LOGI(TAG_AP, "ESP_WIFI_MODE_AP");
-    esp_netif_t* esp_netif_ap = wifi_init_softap();
+    s_esp_netif_ap = wifi_init_softap();
 
     ESP_LOGI(TAG_STA, "ESP_WIFI_MODE_STA");
-    esp_netif_t* esp_netif_sta = wifi_init_sta();
+    s_esp_netif_sta = wifi_init_sta();
 
     // start wifi
     ESP_ERROR_CHECK(esp_wifi_start());
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // set default network interface on station interface
-    esp_netif_set_default_netif(esp_netif_sta);
+    esp_netif_set_default_netif(s_esp_netif_sta);
 
     ESP_LOGI(TAG, "WiFi initialization completed, default netif set to station interface");
     return ESP_OK;
@@ -175,7 +194,16 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
         snprintf((char*)s_wifi_sta_config.sta.password, sizeof(s_wifi_sta_config.sta.password), "%s", password);
 
         ESP_LOGI(TAG_STA, "Updated WiFi config SSID:%s password:%s", s_wifi_sta_config.sta.ssid, s_wifi_sta_config.sta.password);
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &s_wifi_sta_config));
+
+        // disconnect from the current AP before setting new config
+        // should prevent auto-reconnect attempts during config change
+        s_wifi_sta_retry_num = WIFI_STA_RETRY_MAX;
+        esp_wifi_disconnect();
+        while (status_get(STT_STA_STATUS)[0] != '0')  // Wait until disconnected
+        {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        esp_wifi_set_config(WIFI_IF_STA, &s_wifi_sta_config);
     }
     else
     {
@@ -183,9 +211,9 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
         ESP_LOGI(TAG_STA, "Using saved WiFi config SSID:%s password:%s", s_wifi_sta_config.sta.ssid, s_wifi_sta_config.sta.password);
     }
 
-    status_set(STT_STA_CONNECTED, "0");
     // Reset retry counter to allow fresh connection attempts
     s_wifi_sta_retry_num = 0;
+    status_set(STT_STA_STATUS, "1");
     esp_err_t err = esp_wifi_connect();
     if (err != ESP_OK)
     {

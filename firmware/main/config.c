@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "esp_log.h"
@@ -14,9 +15,10 @@ static nvs_handle_t g_nvs_handle = 0;
 // Runtime configuration storage with fixed-size buffers,
 // initialized with defaults
 static config_entry_t g_configs[CFG_MAX] = {
-    [CFG_PRJ_VERSION] = {"prj_version", PROJECT_VERSION},
-    [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},
-    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},
+    [CFG_PRJ_VERSION] = {"prj_version", PROJECT_VERSION},  //
+    [CFG_BUILD_DATE] = {"build_date", BUILD_DATE},         //
+    [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},         //
+    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},            //
     [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},
 };
 
@@ -147,4 +149,23 @@ esp_err_t config_set(config_type_t key, const char* value)
 
     ESP_LOGI(TAG, "Config %s set to: %s", g_configs[key].name, g_configs[key].value);
     return ESP_OK;
+}
+
+const char* config_get_all(void)
+{
+    static char config_json[CFG_MAX * (CFG_VALUE_LENGTH_MAX + 32)];  // Adjust size as needed
+    size_t offset = 0;
+
+    offset += snprintf(config_json + offset, sizeof(config_json) - offset, "{");
+    for (int i = 0; i < CFG_MAX; i++)
+    {
+        if (i > 0)
+        {
+            offset += snprintf(config_json + offset, sizeof(config_json) - offset, ", ");
+        }
+        offset += snprintf(config_json + offset, sizeof(config_json) - offset, "\"%s\": \"%s\"", g_configs[i].name, g_configs[i].value);
+    }
+    snprintf(config_json + offset, sizeof(config_json) - offset, "}");
+
+    return config_json;
 }
