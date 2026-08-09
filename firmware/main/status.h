@@ -6,6 +6,7 @@
 typedef enum
 {
     STT_STA_STATUS,
+    STT_STA_IP,
     STT_MAX
 } status_type_t;
 

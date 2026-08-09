@@ -3,7 +3,33 @@
 #
 # default:
 CONFIG_IDF_TARGET="esp32s3"
+
+#
+# Serial flasher config
+#
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+# end of Serial flasher config
+
+#
+# Partition Table
+#
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+# end of Partition Table
+
+#
+# Compiler options
+#
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+# end of Compiler options
+
+#
+# Component config
+#
+
+#
+# ESP System Settings
+#
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+# end of ESP System Settings
+# end of Component config

@@ -3,14 +3,37 @@
 import os
 import random
 
-from flask import Flask, send_from_directory, jsonify, request
+from time import time
+from datetime import datetime
 from pathlib import Path
+from flask import Flask, send_from_directory, jsonify, request
 
 app = Flask(__name__)
 
 WWW_DIR = Path(__file__).parent / "www"
 HOST = "127.0.0.1"
 PORT = 5000
+
+
+class StatusResponse:
+    def __init__(self):
+        self._start_time = None
+
+    def get_value(self):
+        current_time = time()
+
+        if self._start_time is None:
+            self._start_time = current_time
+
+        elapsed = current_time - self._start_time
+
+        return {
+            "sta_status": "0" if elapsed < 10 else ("1" if elapsed < 20 else "2"),
+            "sta_ip": "" if elapsed < 20 else "192.168.1.100",
+        }
+
+
+statusResponse = StatusResponse()
 
 
 @app.route("/config")
@@ -26,9 +49,9 @@ def get_config():
 
 @app.route("/status")
 def get_status():
-    return jsonify({
-        "sta_status": random.choice(['0', '1', '2']),
-    })
+    return jsonify(
+        statusResponse.get_value()
+    )
 
 
 @app.route("/wifi/connect", methods=["POST"])

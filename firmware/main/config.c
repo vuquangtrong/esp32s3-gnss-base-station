@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "esp_log.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -11,6 +12,7 @@ static const char* TAG = "config";
 static const char* NVS_NAMESPACE = "gnss_config";
 
 static nvs_handle_t g_nvs_handle = 0;
+static bool g_config_changed = true;
 
 // Runtime configuration storage with fixed-size buffers,
 // initialized with defaults
@@ -88,22 +90,22 @@ esp_err_t config_init(void)
 
 const char* config_get(config_type_t key)
 {
-    if (key < CFG_MAX)
+    if (key >= CFG_MAX)
     {
-        return g_configs[key].value;
+        ESP_LOGW(TAG, "Invalid config key: %d", key);
+        return NULL;
     }
-    ESP_LOGW(TAG, "Invalid config key: %d", key);
-    return NULL;
+    return g_configs[key].value;
 }
 
 const char* config_name(config_type_t key)
 {
-    if (key < CFG_MAX)
+    if (key >= CFG_MAX)
     {
-        return g_configs[key].name;
+        ESP_LOGW(TAG, "Invalid config key: %d", key);
+        return NULL;
     }
-    ESP_LOGW(TAG, "Invalid config key: %d", key);
-    return NULL;
+    return g_configs[key].name;
 }
 
 esp_err_t config_set(config_type_t key, const char* value)
@@ -127,9 +129,19 @@ esp_err_t config_set(config_type_t key, const char* value)
         return ESP_ERR_INVALID_ARG;
     }
 
+    // Check if value actually changed
+    if (strcmp(g_configs[key].value, value) == 0)
+    {
+        ESP_LOGD(TAG, "Config %s unchanged, skipping update", g_configs[key].name);
+        return ESP_OK;
+    }
+
     // Update in memory (safe copy into fixed buffer)
     strncpy(g_configs[key].value, value, CFG_VALUE_LENGTH_MAX - 1);
     g_configs[key].value[CFG_VALUE_LENGTH_MAX - 1] = '\0';
+
+    // Mark config as changed to regenerate JSON
+    g_config_changed = true;
 
     // Write to NVS
     esp_err_t err = nvs_set_str(g_nvs_handle, g_configs[key].name, g_configs[key].value);
@@ -153,19 +165,47 @@ esp_err_t config_set(config_type_t key, const char* value)
 
 const char* config_get_all(void)
 {
-    static char config_json[CFG_MAX * (CFG_VALUE_LENGTH_MAX + 32)];  // Adjust size as needed
-    size_t offset = 0;
+    static char* json_string = NULL;
 
-    offset += snprintf(config_json + offset, sizeof(config_json) - offset, "{");
+    // Only regenerate JSON if config has changed
+    if (!g_config_changed && json_string != NULL)
+    {
+        return json_string;
+    }
+
+    // Free previous JSON string
+    if (json_string != NULL)
+    {
+        cJSON_free(json_string);
+        json_string = NULL;
+    }
+
+    cJSON* root = cJSON_CreateObject();
+    if (root == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create JSON object");
+        return "{}";
+    }
+
     for (int i = 0; i < CFG_MAX; i++)
     {
-        if (i > 0)
+        if (cJSON_AddStringToObject(root, g_configs[i].name, g_configs[i].value) == NULL)
         {
-            offset += snprintf(config_json + offset, sizeof(config_json) - offset, ", ");
+            ESP_LOGW(TAG, "Failed to add config %s to JSON", g_configs[i].name);
         }
-        offset += snprintf(config_json + offset, sizeof(config_json) - offset, "\"%s\": \"%s\"", g_configs[i].name, g_configs[i].value);
     }
-    snprintf(config_json + offset, sizeof(config_json) - offset, "}");
 
-    return config_json;
+    json_string = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    if (json_string == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to print JSON string");
+        return "{}";
+    }
+
+    // Clear the changed flag
+    g_config_changed = false;
+
+    return json_string;
 }

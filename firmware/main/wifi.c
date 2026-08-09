@@ -14,10 +14,11 @@
 #include "freertos/task.h"
 #include "status.h"
 
-#define WIFI_AP_SSID_PREFIX "GNSS_BASE_"
-#define WIFI_AP_PASSWORD    "12345678"
-#define WIFI_STA_RETRY_MAX  10
-#define DHCPS_OFFER_DNS     0x02
+#define WIFI_AP_SSID_PREFIX     "GNSS_BASE_"
+#define WIFI_AP_PASSWORD        "12345678"
+#define WIFI_STA_RETRY_MAX      10
+#define WIFI_DISCONNECTED_BIT   BIT0
+#define WIFI_DISCONNECT_TIMEOUT 10000
 
 static const char* TAG = "wifi";
 static const char* TAG_AP = "wifi.ap";
@@ -56,12 +57,20 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
     {
         wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*)event_data;
         ESP_LOGW(TAG_STA, "Disconnected from AP, reason:%d", event->reason);
+
+        // Signal disconnection event
+        if (s_wifi_event_group != NULL)
+        {
+            xEventGroupSetBits(s_wifi_event_group, WIFI_DISCONNECTED_BIT);
+        }
+
         // Increase retry counter and attempt to reconnect if not exceeded max retries
         s_wifi_sta_retry_num++;
         if (s_wifi_sta_retry_num < WIFI_STA_RETRY_MAX)
         {
             ESP_LOGI(TAG_STA, "Retry to connect to the AP (%d/%d)", s_wifi_sta_retry_num, WIFI_STA_RETRY_MAX);
             status_set(STT_STA_STATUS, "1");
+            status_set(STT_STA_IP, "");
             vTaskDelay(pdMS_TO_TICKS(1000));
             esp_wifi_connect();
         }
@@ -69,13 +78,17 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         {
             ESP_LOGW(TAG_STA, "Failed to connect to the AP after %d attempts", WIFI_STA_RETRY_MAX);
             status_set(STT_STA_STATUS, "0");
+            status_set(STT_STA_IP, "");
         }
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*)event_data;
-        ESP_LOGI(TAG_STA, "Connected to AP, got IP:" IPSTR, IP2STR(&event->ip_info.ip));
+        char ip_str[16];
+        esp_ip4addr_ntoa(&event->ip_info.ip, ip_str, sizeof(ip_str));
+        ESP_LOGI(TAG_STA, "Connected to AP, got IP: %s", ip_str);
         status_set(STT_STA_STATUS, "2");
+        status_set(STT_STA_IP, ip_str);
         // Reset retry counter on successful connection
         s_wifi_sta_retry_num = 0;
         // Save the connected SSID and password to config
@@ -198,11 +211,25 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
         // disconnect from the current AP before setting new config
         // should prevent auto-reconnect attempts during config change
         s_wifi_sta_retry_num = WIFI_STA_RETRY_MAX;
-        esp_wifi_disconnect();
-        while (status_get(STT_STA_STATUS)[0] != '0')  // Wait until disconnected
+
+        // Clear the disconnection event bit before disconnecting
+        if (s_wifi_event_group != NULL)
         {
-            vTaskDelay(pdMS_TO_TICKS(100));
+            xEventGroupClearBits(s_wifi_event_group, WIFI_DISCONNECTED_BIT);
         }
+
+        esp_wifi_disconnect();
+
+        // Wait for disconnection event instead of polling
+        if (s_wifi_event_group != NULL)
+        {
+            EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group, WIFI_DISCONNECTED_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(WIFI_DISCONNECT_TIMEOUT));
+            if ((bits & WIFI_DISCONNECTED_BIT) == 0)
+            {
+                ESP_LOGW(TAG_STA, "Disconnect timeout, proceeding anyway");
+            }
+        }
+
         esp_wifi_set_config(WIFI_IF_STA, &s_wifi_sta_config);
     }
     else
@@ -214,6 +241,7 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
     // Reset retry counter to allow fresh connection attempts
     s_wifi_sta_retry_num = 0;
     status_set(STT_STA_STATUS, "1");
+    status_set(STT_STA_IP, "");
     esp_err_t err = esp_wifi_connect();
     if (err != ESP_OK)
     {

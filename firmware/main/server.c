@@ -88,6 +88,23 @@ static esp_err_t www_fs_init(void)
     return ESP_OK;
 }
 
+static inline int hex_to_int(char c)
+{
+    if (c >= '0' && c <= '9')
+    {
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'F')
+    {
+        return c - 'A' + 10;
+    }
+    if (c >= 'a' && c <= 'f')
+    {
+        return c - 'a' + 10;
+    }
+    return 0;
+}
+
 static void url_decode(char* str)
 {
     int len = strlen(str);
@@ -96,8 +113,7 @@ static void url_decode(char* str)
     {
         if (str[i] == '%' && i + 2 < len)
         {
-            int hex_val = 0;
-            sscanf(&str[i + 1], "%2x", &hex_val);
+            int hex_val = (hex_to_int(str[i + 1]) << 4) | hex_to_int(str[i + 2]);
             str[j++] = (char)hex_val;
             i += 2;
         }
@@ -143,19 +159,29 @@ static esp_err_t set_content_type_from_file(httpd_req_t* req, const char* filepa
 /* Read the ETag from cache or load from .crc file */
 static bool get_file_etag(const char* filepath, char* etag_out, size_t max_len)
 {
-    // check if the ETag is already in the RAM cache
+    // Check if the ETag is already in the RAM cache
+    // Minimize critical section: only access shared data, not string comparison
+    int cache_count = 0;
+    etag_cache_entry_t cache_snapshot[ETAG_CACHE_MAX];
+
     portENTER_CRITICAL(&g_etag_cache_lock);
-    for (int i = 0; i < g_etag_cache_count; i++)
+    cache_count = g_etag_cache_count;
+    for (int i = 0; i < cache_count; i++)
     {
-        if (strncmp(g_etag_cache[i].filepath, filepath, SERVER_FILE_PATH_MAX) == 0)
-        {
-            strlcpy(etag_out, g_etag_cache[i].etag, max_len);
-            portEXIT_CRITICAL(&g_etag_cache_lock);
-            ESP_LOGI(TAG, "ETag cache hit for %s: %s", filepath, etag_out);
-            return true;  // Cache hit
-        }
+        cache_snapshot[i] = g_etag_cache[i];
     }
     portEXIT_CRITICAL(&g_etag_cache_lock);
+
+    // Perform string comparison outside critical section
+    for (int i = 0; i < cache_count; i++)
+    {
+        if (strncmp(cache_snapshot[i].filepath, filepath, SERVER_FILE_PATH_MAX) == 0)
+        {
+            strlcpy(etag_out, cache_snapshot[i].etag, max_len);
+            ESP_LOGI(TAG, "ETag cache hit for %s: %s", filepath, etag_out);
+            return true;
+        }
+    }
 
     // if cache miss, read from filesystem
     char crc_filepath[SERVER_FILE_PATH_MAX];
@@ -180,6 +206,7 @@ static bool get_file_etag(const char* filepath, char* etag_out, size_t max_len)
         strlcpy(etag_out, temp_etag, max_len);
 
         // Store the ETag in the RAM cache if possible
+        // Minimize critical section: check and update atomically
         portENTER_CRITICAL(&g_etag_cache_lock);
 
         // Double-check that another concurrent thread didn't already add it

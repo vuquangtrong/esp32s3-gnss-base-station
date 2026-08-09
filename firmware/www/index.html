@@ -1,160 +1,211 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GNSS Station</title>
-    <link rel="stylesheet" href="/pico.min.css">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GNSS Base</title>
+    <link rel="stylesheet" href="/pico.min.css" />
     <script defer src="/alpine.min.js"></script>
     <style>
-        :root {
-            --pico-spacing: 0.5rem;
-            --pico-nav-element-spacing-vertical: var(--pico-spacing);
-            --pico-nav-element-spacing-horizontal: var(--pico-spacing);
-            --pico-form-element-spacing-vertical: var(--pico-spacing);
-            --pico-form-element-spacing-horizontal: var(--pico-spacing);
-        }
+      :root {
+        --pico-spacing: 0.5rem;
+        --pico-nav-element-spacing-vertical: var(--pico-spacing);
+        --pico-nav-element-spacing-horizontal: var(--pico-spacing);
+        --pico-form-element-spacing-vertical: var(--pico-spacing);
+        --pico-form-element-spacing-horizontal: var(--pico-spacing);
+      }
 
-        .text-green {
-            color: green;
-        }
+      header {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+      }
 
-        .text-orange {
-            color: darkorange;
-        }
+      .text-green {
+        color: green;
+      }
 
-        .text-red {
-            color: red;
-        }
+      .text-orange {
+        color: darkorange;
+      }
 
-        .notification {
-            color: red;
-            background-color: lightyellow;
-            border: solid 1px red;
-            padding: var(--pico-spacing);
-            white-space: pre-line;
-        }
+      .text-red {
+        color: red;
+      }
+
+      .notification {
+        color: red;
+        background-color: lightyellow;
+        border: solid 1px red;
+        padding: var(--pico-spacing);
+        white-space: pre-line;
+      }
     </style>
-</head>
+  </head>
 
-<body x-data="{ sys: $store.system }">
-    <template x-if="sys.notification_message">
-        <div class="notification" x-text="sys.notification_message"></div>
+  <body x-data="app">
+    <template x-if="message">
+      <div class="container notification" x-text="message"></div>
     </template>
 
     <header class="container">
-        <nav>
-            <ul>
-                <li><strong>GNSS Station</strong></li>
-            </ul>
-            <ul>
-                <li><svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="8" cy="8" r="8" fill="currentColor" />
-                    </svg>
-                </li>
-            </ul>
-        </nav>
+      <nav>
+        <ul>
+          <li><strong>GNSS Base</strong></li>
+          <li x-show="heartbeat">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="8" cy="8" r="8" fill="darkcyan" />
+            </svg>
+          </li>
+        </ul>
+        <ul>
+          <li>
+            <img src="/favicon.ico" width="24" height="24" />
+          </li>
+        </ul>
+      </nav>
     </header>
 
-    <main>
-        <article>
-            <nav>
-                <ul>
-                    <li><strong>WiFi Settings</strong></li>
-                </ul>
-                <ul>
-                    <li :class="sys.status.sta_status === '2' ? 'text-green' : sys.status.sta_status === '1' ? 'text-orange' : 'text-red'"
-                        x-text="sys.status.sta_status === '2' ? 'Connected' : sys.status.sta_status === '1' ? 'Connecting...' : 'Disconnected'">
-                    </li>
-                </ul>
-            </nav>
-            <form @submit.prevent="sys.wifiConnect()">
-                <div class="grid" style="grid-template-columns: 5rem 1fr; gap: 0; align-items: center;">
-                    <label for="ssid">WiFi AP</label>
-                    <input id="ssid" x-model="sys.config.wifi_ssid" autocomplete="on" required />
+    <main class="container grid">
+      <article>
+        <header>
+          <nav>
+            <ul>
+              <li><strong>WiFi Settings</strong></li>
+            </ul>
+            <ul>
+              <li
+                :class="status.sta_status === '2' ? 'text-green' : status.sta_status === '1' ? 'text-orange' : 'text-red'"
+                x-text="status.sta_status === '2' ? 'Connected' : status.sta_status === '1' ? 'Connecting...' : 'Disconnected'"
+              ></li>
+              <li x-text="status.sta_ip"></li>
+            </ul>
+          </nav>
+        </header>
 
-                    <label for="password">Password</label>
-                    <input id="password" x-model="sys.config.wifi_password" autocomplete="on" required />
+        <form @submit.prevent="wifiConnect()">
+          <div
+            class="grid"
+            style="grid-template-columns: 5rem 1fr; gap: 0; align-items: center"
+          >
+            <label for="ssid">WiFi AP</label>
+            <input
+              id="ssid"
+              x-model="config.wifi_ssid"
+              autocomplete="on"
+              required
+            />
 
-                    <div></div>
-                    <button type="submit" :disabled="sys.status.sta_status === '1'">Connect</button>
-                </div>
-            </form>
-        </article>
+            <label for="password">Password</label>
+            <input
+              id="password"
+              x-model="config.wifi_password"
+              autocomplete="on"
+              required
+            />
+
+            <div></div>
+            <button type="submit" :disabled="status.sta_status === '1'">
+              Connect
+            </button>
+          </div>
+        </form>
+      </article>
+
+      <article>
+        <header>
+          <nav></nav>
+        </header>
+      </article>
     </main>
 
     <footer class="container">
-        <nav>
-            <ul>
-                <li>Version <span x-text="sys.config.prj_version || '...'"></span></li>
-            </ul>
-            <ul>
-                <li><span x-text="sys.config.build_date || '...'"></span>
-                    (<span x-text="sys.config.git_commit || '...'"></span>)</li>
-            </ul>
-        </nav>
+      <nav>
+        <ul>
+          <li>Version <span x-text="config.prj_version"></span></li>
+        </ul>
+        <ul>
+          <li>
+            <span x-text="config.build_date"></span>
+            (<span x-text="config.git_commit"></span>)
+          </li>
+        </ul>
+      </nav>
     </footer>
 
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.store('system', {
-                config: {},
-                status: {},
-                notification_message: '',
+      document.addEventListener("alpine:init", () => {
+        Alpine.data("app", () => ({
+          config: {},
+          status: {},
+          heartbeat: false,
+          message: "",
 
-                setNotification(message) {
-                    this.notification_message = message;
-                    if (message) {
-                        window.scrollTo(0, 0);
-                    }
-                },
+          setMessage(msg) {
+            this.message = msg;
+            if (msg) window.scrollTo(0, 0);
+          },
 
-                async request(url, options = {}) {
-                    try {
-                        const res = await fetch(url, options);
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        return res.headers.get('content-type')?.includes('application/json') ? await res.json() : true;
-                    } catch (err) {
-                        console.error(`Fetch failed (${url}):`, err);
-                        return null;
-                    }
-                },
+          async request(url, options = {}) {
+            try {
+              const res = await fetch(url, options);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.headers
+                .get("content-type")
+                ?.includes("application/json")
+                ? await res.json()
+                : true;
+            } catch (err) {
+              console.error(`Fetch failed (${url}):`, err);
+              return null;
+            }
+          },
 
-                async wifiConnect() {
-                    const params = new URLSearchParams({
-                        ssid: this.config.wifi_ssid || '',
-                        password: this.config.wifi_password || ''
-                    });
-                    this.status.sta_status = '1';
-                    await this.request(`/wifi/connect?${params}`, { method: "POST" });
-                },
+          async fetchConfig() {
+            const data = await this.request("/config");
+            console.log("Fetched config:", data);
+            if (data) this.config = data;
+          },
 
-                async fetchConfig() {
-                    const data = await this.request("/config");
-                    if (data) this.config = data;
-                },
+          async fetchStatus() {
+            const data = await this.request("/status");
+            console.log("Fetched status:", data);
+            if (data) {
+              this.status = data;
+              this.heartbeat = !this.heartbeat;
+              this.setMessage("");
+            } else {
+              this.status = {};
+              this.heartbeat = false;
+              this.setMessage(
+                "Cannot connect to server.\nPlease check your connection.",
+              );
+            }
+          },
 
-                async fetchStatus() {
-                    const data = await this.request("/status");
-                    console.log('Fetched status:', data);
-                    if (data) {
-                        this.status = data;
-                        this.setNotification('');
-                    } else {
-                        this.status = {};
-                        this.setNotification('Cannot connect to server.\nPlease check your connection.');
-                    }
-                },
-
-                async init() {
-                    await this.fetchConfig();
-                    await this.fetchStatus();
-                    setInterval(() => this.fetchStatus(), 5000);
-                }
+          async wifiConnect() {
+            const params = new URLSearchParams({
+              ssid: this.config.wifi_ssid || "",
+              password: this.config.wifi_password || "",
             });
-        });
-    </script>
-</body>
+            this.status.sta_status = "1";
+            this.setMessage(
+              "You may need to connect to the device's WiFi\nor the WiFi this device connects to.",
+            );
+            await this.request(`/wifi/connect?${params}`, { method: "POST" });
+          },
 
+          async init() {
+            await this.fetchConfig();
+            await this.fetchStatus();
+            setInterval(() => this.fetchStatus(), 3000);
+          },
+        }));
+      });
+    </script>
+  </body>
 </html>
