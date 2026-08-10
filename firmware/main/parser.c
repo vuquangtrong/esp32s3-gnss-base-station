@@ -254,7 +254,7 @@ esp_err_t parser_task_start(void)
         return ESP_OK;
     }
 
-    BaseType_t ret = xTaskCreate(parser_task, "parser_task", 4096, NULL, 6, &g_parser_task_handle);
+    BaseType_t ret = xTaskCreate(parser_task, "parser_task", 2048, NULL, 5, &g_parser_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG, "failed to create parser task");

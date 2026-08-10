@@ -20,7 +20,6 @@
 
 static const char* TAG = "server";
 
-static portMUX_TYPE g_etag_cache_lock = portMUX_INITIALIZER_UNLOCKED;
 static etag_cache_entry_t g_etag_cache[ETAG_CACHE_MAX];
 static int g_etag_cache_count = 0;
 
@@ -160,31 +159,18 @@ static esp_err_t set_content_type_from_file(httpd_req_t* req, const char* filepa
 static bool get_file_etag(const char* filepath, char* etag_out, size_t max_len)
 {
     // Check if the ETag is already in the RAM cache
-    // Minimize critical section: only access shared data, not string comparison
-    int cache_count = 0;
-    etag_cache_entry_t cache_snapshot[ETAG_CACHE_MAX];
-
-    portENTER_CRITICAL(&g_etag_cache_lock);
-    cache_count = g_etag_cache_count;
-    for (int i = 0; i < cache_count; i++)
+    for (int i = 0; i < g_etag_cache_count; i++)
     {
-        cache_snapshot[i] = g_etag_cache[i];
-    }
-    portEXIT_CRITICAL(&g_etag_cache_lock);
-
-    // Perform string comparison outside critical section
-    for (int i = 0; i < cache_count; i++)
-    {
-        if (strncmp(cache_snapshot[i].filepath, filepath, SERVER_FILE_PATH_MAX) == 0)
+        if (strncmp(g_etag_cache[i].filepath, filepath, SERVER_FILE_PATH_MAX) == 0)
         {
-            strlcpy(etag_out, cache_snapshot[i].etag, max_len);
+            strlcpy(etag_out, g_etag_cache[i].etag, max_len);
             ESP_LOGI(TAG, "ETag cache hit for %s: %s", filepath, etag_out);
             return true;
         }
     }
 
-    // if cache miss, read from filesystem
-    char crc_filepath[SERVER_FILE_PATH_MAX];
+    // Cache miss — read CRC from filesystem
+    static char crc_filepath[SERVER_FILE_PATH_MAX];
     strlcpy(crc_filepath, filepath, sizeof(crc_filepath));
     strlcat(crc_filepath, ".crc", sizeof(crc_filepath));
 
@@ -194,41 +180,23 @@ static bool get_file_etag(const char* filepath, char* etag_out, size_t max_len)
         return false;  // CRC file not found
     }
 
-    char crc_buf[32] = {0};
+    static char crc_buf[32];
+    crc_buf[0] = '\0';
     ssize_t bytes_read = read(crc_fd, crc_buf, sizeof(crc_buf) - 1);
     close(crc_fd);
 
     if (bytes_read > 0)
     {
         // HTTP ETags must be wrapped in double quotes
-        char temp_etag[64];
-        snprintf(temp_etag, sizeof(temp_etag), "\"%s\"", crc_buf);
-        strlcpy(etag_out, temp_etag, max_len);
+        snprintf(etag_out, max_len, "\"%s\"", crc_buf);
 
-        // Store the ETag in the RAM cache if possible
-        // Minimize critical section: check and update atomically
-        portENTER_CRITICAL(&g_etag_cache_lock);
-
-        // Double-check that another concurrent thread didn't already add it
-        bool already_cached = false;
-        for (int i = 0; i < g_etag_cache_count; i++)
-        {
-            if (strncmp(g_etag_cache[i].filepath, filepath, SERVER_FILE_PATH_MAX) == 0)
-            {
-                already_cached = true;
-                break;
-            }
-        }
-
-        // Store it if space allows
-        if (!already_cached && g_etag_cache_count < ETAG_CACHE_MAX)
+        // Store in cache if space allows
+        if (g_etag_cache_count < ETAG_CACHE_MAX)
         {
             strlcpy(g_etag_cache[g_etag_cache_count].filepath, filepath, SERVER_FILE_PATH_MAX);
-            strlcpy(g_etag_cache[g_etag_cache_count].etag, temp_etag, sizeof(g_etag_cache[g_etag_cache_count].etag));
+            strlcpy(g_etag_cache[g_etag_cache_count].etag, etag_out, sizeof(g_etag_cache[g_etag_cache_count].etag));
             g_etag_cache_count++;
         }
-
-        portEXIT_CRITICAL(&g_etag_cache_lock);
         return true;
     }
 

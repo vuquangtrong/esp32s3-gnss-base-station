@@ -344,7 +344,7 @@ esp_err_t uart1_task_start(void)
         return ESP_ERR_INVALID_STATE;
     }
 
-    BaseType_t ret = xTaskCreate(uart1_task, "uart1_rx", 8192, NULL, 6, &g_uart1_task_handle);
+    BaseType_t ret = xTaskCreate(uart1_task, "uart1_rx", 4096, NULL, 6, &g_uart1_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG1, "failed to create UART task");
@@ -362,7 +362,7 @@ esp_err_t uart2_task_start(void)
         return ESP_ERR_INVALID_STATE;
     }
 
-    BaseType_t ret = xTaskCreate(uart2_task, "uart2_rx", 8192, NULL, 6, &g_uart2_task_handle);
+    BaseType_t ret = xTaskCreate(uart2_task, "uart2_rx", 4096, NULL, 6, &g_uart2_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG2, "failed to create UART task");

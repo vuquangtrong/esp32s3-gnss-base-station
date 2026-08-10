@@ -64,7 +64,7 @@ esp_err_t logger_task_start(void)
         return ESP_OK;
     }
 
-    BaseType_t ret = xTaskCreate(logger_task, "logger_task", 4096, NULL, 5, &g_logger_task_handle);
+    BaseType_t ret = xTaskCreate(logger_task, "logger_task", 2048, NULL, 5, &g_logger_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG, "failed to create logger task");

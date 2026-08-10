@@ -15,6 +15,12 @@
         --pico-form-element-spacing-horizontal: var(--pico-spacing);
       }
 
+      @media only screen and (prefers-color-scheme: dark) {
+        img.battery {
+          filter: invert(1) hue-rotate(180deg);
+        }
+      }
+
       header {
         padding-top: 0 !important;
         padding-bottom: 0 !important;
@@ -72,7 +78,12 @@
           </li>
           <li>
             <span x-text="bat_percent"></span>%
-            <img x-bind:src="bat_volt_icon" width="24" height="24" />
+            <img
+              class="battery"
+              x-bind:src="bat_volt_icon"
+              width="24"
+              height="24"
+            />
           </li>
         </ul>
       </nav>
@@ -129,16 +140,16 @@
           <div
             class="grid"
             style="
-              grid-template-columns: 5rem 1fr 2fr 1fr 2fr;
+              grid-template-columns: 5rem 1fr 2fr 1fr 1fr 2fr 1fr;
               gap: 0;
               align-items: center;
             "
           >
             <small>Accuracy</small>
             <small>hor</small>
-            <small x-text="status.gnss_hacc"></small>
+            <small x-text="status.gnss_hacc"></small><small>(m)</small>
             <small>ver</small>
-            <small x-text="status.gnss_vacc"></small>
+            <small x-text="status.gnss_vacc"></small><small>(m)</small>
           </div>
         </form>
       </article>
@@ -189,13 +200,17 @@
       <nav>
         <ul>
           <li>
-            V<span x-text="config.prj_version"></span>
-            <span x-text="config.build_date"></span>
-            <span x-text="config.git_commit"></span>
+            <small>
+              V<span x-text="config.prj_version"></span>
+              <span x-text="config.build_date"></span>
+              <span x-text="config.git_commit"></span>
+            </small>
           </li>
         </ul>
         <ul>
-          <li><span x-text="status.bat_volt"></span>mV</li>
+          <li>
+            <small> <span x-text="status.bat_volt"></span>mV </small>
+          </li>
         </ul>
       </nav>
     </footer>

@@ -66,7 +66,7 @@ statusResponse = StatusResponse()
 def get_config():
     return jsonify({
         "prj_version": "2.0",
-        "build_date": "2026-01-01",
+        "build_date": "01/01/2026",
         "git_commit": "abcdef123",
         "wifi_ssid": "TrongIP",
         "wifi_password": "asdfghjkl"

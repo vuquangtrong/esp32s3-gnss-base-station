@@ -10,7 +10,6 @@
 static const char* TAG = "status";
 
 static bool g_status_changed = true;
-static portMUX_TYPE g_status_spinlock = portMUX_INITIALIZER_UNLOCKED;
 
 // Runtime status with fixed-size buffers,
 // initialized with defaults
@@ -62,13 +61,11 @@ void status_set_int(status_type_t key, int value)
         return;
     }
 
-    portENTER_CRITICAL(&g_status_spinlock);
     if (g_status[key].value.i_value != value)
     {
         g_status[key].value.i_value = value;
         g_status_changed = true;
     }
-    portEXIT_CRITICAL(&g_status_spinlock);
 }
 
 void status_set_double(status_type_t key, double value)
@@ -79,13 +76,11 @@ void status_set_double(status_type_t key, double value)
         return;
     }
 
-    portENTER_CRITICAL(&g_status_spinlock);
     if (g_status[key].value.d_value != value)
     {
         g_status[key].value.d_value = value;
         g_status_changed = true;
     }
-    portEXIT_CRITICAL(&g_status_spinlock);
 }
 
 void status_set_str(status_type_t key, const char* value)
@@ -102,46 +97,34 @@ void status_set_str(status_type_t key, const char* value)
         return;
     }
 
-    portENTER_CRITICAL(&g_status_spinlock);
     if (strcmp(g_status[key].value.str_value, value) != 0)
     {
         strncpy(g_status[key].value.str_value, value, STT_VALUE_LENGTH_MAX - 1);
         g_status[key].value.str_value[STT_VALUE_LENGTH_MAX - 1] = '\0';
         g_status_changed = true;
     }
-    portEXIT_CRITICAL(&g_status_spinlock);
 }
 
 int status_get_int(status_type_t key)
 {
-    int val = 0;
     if (key >= STT_MAX)
     {
         ESP_LOGE(TAG, "Invalid status key: %d", key);
         return 0;
     }
 
-    portENTER_CRITICAL(&g_status_spinlock);
-    val = g_status[key].value.i_value;
-    portEXIT_CRITICAL(&g_status_spinlock);
-
-    return val;
+    return g_status[key].value.i_value;
 }
 
 double status_get_double(status_type_t key)
 {
-    double val = 0.0;
     if (key >= STT_MAX)
     {
         ESP_LOGE(TAG, "Invalid status key: %d", key);
         return 0.0;
     }
 
-    portENTER_CRITICAL(&g_status_spinlock);
-    val = g_status[key].value.d_value;
-    portEXIT_CRITICAL(&g_status_spinlock);
-
-    return val;
+    return g_status[key].value.d_value;
 }
 
 const char* status_get_str(status_type_t key)
@@ -153,10 +136,8 @@ const char* status_get_str(status_type_t key)
         return "";
     }
 
-    portENTER_CRITICAL(&g_status_spinlock);
     strncpy(buf, g_status[key].value.str_value, STT_VALUE_LENGTH_MAX - 1);
     buf[STT_VALUE_LENGTH_MAX - 1] = '\0';
-    portEXIT_CRITICAL(&g_status_spinlock);
 
     return buf;
 }
@@ -165,12 +146,8 @@ const char* status_get_all(void)
 {
     static char* json_string = NULL;
 
-    portENTER_CRITICAL(&g_status_spinlock);
-    bool changed = g_status_changed;
-    portEXIT_CRITICAL(&g_status_spinlock);
-
     // Only regenerate JSON if status has changed
-    if (!changed && json_string != NULL)
+    if (!g_status_changed && json_string != NULL)
     {
         return json_string;
     }
@@ -189,33 +166,29 @@ const char* status_get_all(void)
         return "{}";
     }
 
-    status_entry_t temp_status[STT_MAX];
-    portENTER_CRITICAL(&g_status_spinlock);
-    memcpy(temp_status, g_status, sizeof(g_status));
     g_status_changed = false;
-    portEXIT_CRITICAL(&g_status_spinlock);
 
     for (int i = 0; i < STT_MAX; i++)
     {
-        if (temp_status[i].type == STT_VALUE_INT)
+        if (g_status[i].type == STT_VALUE_INT)
         {
-            if (cJSON_AddNumberToObject(root, temp_status[i].name, temp_status[i].value.i_value) == NULL)
+            if (cJSON_AddNumberToObject(root, g_status[i].name, g_status[i].value.i_value) == NULL)
             {
-                ESP_LOGW(TAG, "Failed to add status %s to JSON", temp_status[i].name);
+                ESP_LOGW(TAG, "Failed to add status %s to JSON", g_status[i].name);
             }
         }
-        else if (temp_status[i].type == STT_VALUE_DOUBLE)
+        else if (g_status[i].type == STT_VALUE_DOUBLE)
         {
-            if (cJSON_AddNumberToObject(root, temp_status[i].name, temp_status[i].value.d_value) == NULL)
+            if (cJSON_AddNumberToObject(root, g_status[i].name, g_status[i].value.d_value) == NULL)
             {
-                ESP_LOGW(TAG, "Failed to add status %s to JSON", temp_status[i].name);
+                ESP_LOGW(TAG, "Failed to add status %s to JSON", g_status[i].name);
             }
         }
-        else if (temp_status[i].type == STT_VALUE_STRING)
+        else if (g_status[i].type == STT_VALUE_STRING)
         {
-            if (cJSON_AddStringToObject(root, temp_status[i].name, temp_status[i].value.str_value) == NULL)
+            if (cJSON_AddStringToObject(root, g_status[i].name, g_status[i].value.str_value) == NULL)
             {
-                ESP_LOGW(TAG, "Failed to add status %s to JSON", temp_status[i].name);
+                ESP_LOGW(TAG, "Failed to add status %s to JSON", g_status[i].name);
             }
         }
     }
