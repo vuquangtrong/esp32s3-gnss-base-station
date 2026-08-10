@@ -70,6 +70,10 @@
             <span x-text="status.gnss_sat"></span>
             <img src="/favicon.ico" width="24" height="24" />
           </li>
+          <li>
+            <span x-text="bat_percent"></span>%
+            <img x-bind:src="bat_volt_icon" width="24" height="24" />
+          </li>
         </ul>
       </nav>
     </header>
@@ -100,9 +104,20 @@
 
             <label>Longitude</label>
             <input x-bind:value="status.gnss_lon" readonly />
+          </div>
 
+          <div
+            class="grid"
+            style="
+              grid-template-columns: 5rem 1fr 1rem 1fr;
+              gap: 0;
+              align-items: center;
+            "
+          >
             <label>Altitude</label>
             <input x-bind:value="status.gnss_alt" readonly />
+            <div></div>
+            <span>(m) ASL</span>
           </div>
           <div
             class="grid"
@@ -173,13 +188,14 @@
     <footer class="container">
       <nav>
         <ul>
-          <li>V<span x-text="config.prj_version"></span></li>
+          <li>
+            V<span x-text="config.prj_version"></span>
+            <span x-text="config.build_date"></span>
+            <span x-text="config.git_commit"></span>
+          </li>
         </ul>
         <ul>
-          <li>
-            <span x-text="config.build_date"></span>
-            (<span x-text="config.git_commit"></span>)
-          </li>
+          <li><span x-text="status.bat_volt"></span>mV</li>
         </ul>
       </nav>
     </footer>
@@ -195,6 +211,23 @@
           setMessage(msg) {
             this.message = msg;
             if (msg) window.scrollTo(0, 0);
+          },
+
+          get bat_percent() {
+            const volt = Number(this.status.bat_volt); // in range 1650-2100 mV
+            return Math.max(
+              0,
+              Math.min(100, Math.round(((volt - 1650) / (2100 - 1650)) * 100)),
+            );
+          },
+
+          get bat_volt_icon() {
+            const volt = Number(this.status.bat_volt); // in range 1650-2100 mV
+            if (volt >= 2000) return "/bat_100.png";
+            if (volt >= 1900) return "/bat_75.png";
+            if (volt >= 1800) return "/bat_50.png";
+            if (volt >= 1700) return "/bat_25.png";
+            return "/bat_0.png";
           },
 
           get gnss_fix_class() {

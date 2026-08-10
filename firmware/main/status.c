@@ -15,6 +15,8 @@ static portMUX_TYPE g_status_spinlock = portMUX_INITIALIZER_UNLOCKED;
 // Runtime status with fixed-size buffers,
 // initialized with defaults
 static status_entry_t g_status[STT_MAX] = {
+    // Battery
+    [STT_BAT_VOLT] = {.name = "bat_volt", .type = STT_VALUE_INT, .value = {.i_value = 0}},
     // WiFi Station
     [STT_STA_STATUS] = {.name = "sta_status", .type = STT_VALUE_INT, .value = {.i_value = WIFI_DISCONNECT}},
     [STT_STA_IP] = {.name = "sta_ip", .type = STT_VALUE_STRING, .value = {.str_value = ""}},

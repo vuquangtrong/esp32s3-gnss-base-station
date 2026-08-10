@@ -31,10 +31,14 @@ class StatusResponse:
         elapsed = current_time - self._start_time
 
         return {
+            # Battery
+            "bat_volt": random.randint(1650, 2100),
+            # WiFi
             "sta_status": 0 if elapsed < 10 else (1 if elapsed < 20 else 2),
             "sta_ip": "" if elapsed < 20 else "192.168.1.100",
-
+            # GNSS Mode
             "gnss_mode": GNSS_MODE,
+            # GNSS Position
             "gnss_date": datetime.utcnow().strftime("%Y-%m-%d"),
             "gnss_time": datetime.utcnow().strftime("%H:%M:%S"),
             "gnss_lat": f"{random.uniform(-90, 90):.7f}",

@@ -1,6 +1,7 @@
 set(srcs
     config.c
     status.c
+    battery.c
     wifi.c
     server.c
     ublox.c
@@ -14,6 +15,7 @@ idf_component_register(SRCS ${srcs}
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash
+        esp_adc
         esp_wifi
         esp_http_server
         esp_driver_gpio
@@ -28,7 +30,7 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE
     PROJECT_VERSION="${CMAKE_PROJECT_VERSION}"
     BUILD_DATE="${BUILD_DATE}"
     GIT_COMMIT="${GIT_COMMIT}"
-    ETAG_CACHE_MAX=4
+    ETAG_CACHE_MAX=9
 )
 
 set(WEB_SRC_DIR "${CMAKE_SOURCE_DIR}/www")

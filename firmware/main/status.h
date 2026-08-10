@@ -26,6 +26,8 @@ typedef enum
 
 typedef enum
 {
+    // Battery
+    STT_BAT_VOLT,
     // WiFi Station
     STT_STA_STATUS,
     STT_STA_IP,

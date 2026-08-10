@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "battery.h"
 #include "config.h"
 #include "logger.h"
 #include "parser.h"
@@ -13,6 +14,10 @@ void app_main(void)
     printf("===== GNSS STATION =====\n");
 
     ESP_ERROR_CHECK(config_init());
+
+    ESP_ERROR_CHECK(battery_init());
+    ESP_ERROR_CHECK(battery_task_start());
+
     ESP_ERROR_CHECK(wifi_init());
     ESP_ERROR_CHECK(server_init());
 
