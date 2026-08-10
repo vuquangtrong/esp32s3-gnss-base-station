@@ -15,6 +15,9 @@ HOST = "127.0.0.1"
 PORT = 5000
 
 
+GNSS_MODE = 0  # Options: 0 (ROVER), 1 (BASE), 2 (PPP)
+
+
 class StatusResponse:
     def __init__(self):
         self._start_time = None
@@ -28,8 +31,27 @@ class StatusResponse:
         elapsed = current_time - self._start_time
 
         return {
-            "sta_status": "0" if elapsed < 10 else ("1" if elapsed < 20 else "2"),
+            "sta_status": 0 if elapsed < 10 else (1 if elapsed < 20 else 2),
             "sta_ip": "" if elapsed < 20 else "192.168.1.100",
+
+            "gnss_mode": GNSS_MODE,
+            "gnss_date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "gnss_time": datetime.utcnow().strftime("%H:%M:%S"),
+            "gnss_lat": f"{random.uniform(-90, 90):.7f}",
+            "gnss_lon": f"{random.uniform(-180, 180):.7f}",
+            "gnss_alt": f"{random.uniform(0, 1000):.3f}",
+            "gnss_sat": random.randint(0, 20),
+            "gnss_fix": random.choice([
+                "DR ONLY",
+                "TIME FIX",
+                "GNSS+DR",
+                "2D FIX",
+                "3D FIX",
+                "FLOAT RTK",
+                "FIXED RTK"
+            ]),
+            "gnss_hacc": f"{random.uniform(0.01, 1.0):.3f}",
+            "gnss_vacc": f"{random.uniform(0.01, 1.0):.3f}",
         }
 
 
@@ -54,15 +76,20 @@ def get_status():
     )
 
 
-@app.route("/wifi/connect", methods=["POST"])
-def wifi_connect():
-    ssid = request.args.get("ssid")
-    password = request.args.get("password")
+@app.route("/wifi", methods=["POST"])
+def wifi():
+    command = request.args.get("command")
 
-    if not ssid or not password:
-        return "Missing SSID or password", 400
+    if command == "connect":
+        ssid = request.args.get("ssid")
+        password = request.args.get("password")
 
-    return "WiFi connection initiated", 200
+        if not ssid or not password:
+            return "Missing SSID or password", 400
+
+        return "WiFi connection initiated", 200
+
+    return "Invalid command", 400
 
 
 @app.route("/")

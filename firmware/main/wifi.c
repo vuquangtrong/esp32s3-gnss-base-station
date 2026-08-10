@@ -69,7 +69,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         if (s_wifi_sta_retry_num < WIFI_STA_RETRY_MAX)
         {
             ESP_LOGI(TAG_STA, "Retry to connect to the AP (%d/%d)", s_wifi_sta_retry_num, WIFI_STA_RETRY_MAX);
-            status_set(STT_STA_STATUS, "1");
+            status_set(STT_STA_STATUS, WIFI_CONNECTING);
             status_set(STT_STA_IP, "");
             vTaskDelay(pdMS_TO_TICKS(1000));
             esp_wifi_connect();
@@ -77,7 +77,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         else
         {
             ESP_LOGW(TAG_STA, "Failed to connect to the AP after %d attempts", WIFI_STA_RETRY_MAX);
-            status_set(STT_STA_STATUS, "0");
+            status_set(STT_STA_STATUS, WIFI_DISCONNECT);
             status_set(STT_STA_IP, "");
         }
     }
@@ -87,7 +87,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         char ip_str[16];
         esp_ip4addr_ntoa(&event->ip_info.ip, ip_str, sizeof(ip_str));
         ESP_LOGI(TAG_STA, "Connected to AP, got IP: %s", ip_str);
-        status_set(STT_STA_STATUS, "2");
+        status_set(STT_STA_STATUS, WIFI_CONNECTED);
         status_set(STT_STA_IP, ip_str);
         // Reset retry counter on successful connection
         s_wifi_sta_retry_num = 0;
@@ -240,7 +240,7 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
 
     // Reset retry counter to allow fresh connection attempts
     s_wifi_sta_retry_num = 0;
-    status_set(STT_STA_STATUS, "1");
+    status_set(STT_STA_STATUS, WIFI_CONNECTING);
     status_set(STT_STA_IP, "");
     esp_err_t err = esp_wifi_connect();
     if (err != ESP_OK)

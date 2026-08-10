@@ -1,9 +1,13 @@
 set(srcs
-    "config.c"
-    "status.c"
-    "wifi.c"
-    "server.c"
-    "main.c"
+    config.c
+    status.c
+    wifi.c
+    server.c
+    ublox.c
+    parser.c
+    logger.c
+    uart.c
+    main.c
 )
 
 idf_component_register(SRCS ${srcs}
@@ -12,6 +16,8 @@ idf_component_register(SRCS ${srcs}
         nvs_flash
         esp_wifi
         esp_http_server
+        esp_driver_gpio
+        esp_driver_uart
     WHOLE_ARCHIVE
 )
 

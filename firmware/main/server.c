@@ -248,7 +248,7 @@ static esp_err_t server_config_get_handler(httpd_req_t* req)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, config_json, strlen(config_json));
 
-    ESP_LOGI(TAG, "config: %s", config_json);
+    // ESP_LOGI(TAG, "config: %s", config_json);
     return ESP_OK;
 }
 
@@ -265,12 +265,12 @@ static esp_err_t server_status_get_handler(httpd_req_t* req)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, status_json, strlen(status_json));
 
-    ESP_LOGI(TAG, "status: %s", status_json);
+    // ESP_LOGI(TAG, "status: %s", status_json);
     return ESP_OK;
 }
 
-/* Handler for POST /wifi/connect */
-static esp_err_t server_wifi_connect_post_handler(httpd_req_t* req)
+/* Handler for POST /wifi */
+static esp_err_t server_wifi_post_handler(httpd_req_t* req)
 {
     char query_str[256] = {0};
     size_t query_len = httpd_req_get_url_query_len(req) + 1;
@@ -287,39 +287,51 @@ static esp_err_t server_wifi_connect_post_handler(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    char ssid[33] = {0};
-    char password[65] = {0};
-
-    if (httpd_query_key_value(query_str, "ssid", ssid, sizeof(ssid)) != ESP_OK)
+    char command[32] = {0};
+    if (httpd_query_key_value(query_str, "command", command, sizeof(command)) != ESP_OK)
     {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing SSID parameter");
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command parameter");
         return ESP_FAIL;
     }
 
-    if (httpd_query_key_value(query_str, "password", password, sizeof(password)) != ESP_OK)
+    if (strcmp(command, "connect") == 0)
     {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing password parameter");
-        return ESP_FAIL;
+        char ssid[33] = {0};
+        char password[65] = {0};
+
+        if (httpd_query_key_value(query_str, "ssid", ssid, sizeof(ssid)) != ESP_OK)
+        {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing SSID parameter");
+            return ESP_FAIL;
+        }
+
+        if (httpd_query_key_value(query_str, "password", password, sizeof(password)) != ESP_OK)
+        {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing password parameter");
+            return ESP_FAIL;
+        }
+
+        url_decode(ssid);
+        url_decode(password);
+
+        ESP_LOGI(TAG, "connect SSID=%s, password=%s", ssid, password);
+
+        esp_err_t err = wifi_sta_connect(ssid, password);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "connection failed: %s", esp_err_to_name(err));
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to initiate WiFi connection");
+            return ESP_FAIL;
+        }
+
+        ESP_LOGI(TAG, "connection initiated");
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_send(req, "WiFi connection initiated", strlen("WiFi connection initiated"));
+        return ESP_OK;
     }
 
-    url_decode(ssid);
-    url_decode(password);
-
-    ESP_LOGI(TAG, "connect SSID=%s, password=%s", ssid, password);
-
-    esp_err_t err = wifi_sta_connect(ssid, password);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "connection failed: %s", esp_err_to_name(err));
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to initiate WiFi connection");
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "connection initiated");
-    httpd_resp_set_type(req, "text/plain");
-    httpd_resp_send(req, "WiFi connection initiated", strlen("WiFi connection initiated"));
-
-    return ESP_OK;
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid command parameter");
+    return ESP_FAIL;
 }
 
 /* Handler for GET files */
@@ -443,13 +455,13 @@ esp_err_t server_start(const char* base_path)
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &status_uri));
 
-    httpd_uri_t wifi_connect_uri = {
-        .uri = "/wifi/connect",  //
+    httpd_uri_t wifi_post_uri = {
+        .uri = "/wifi",  //
         .method = HTTP_POST,
-        .handler = server_wifi_connect_post_handler,
+        .handler = server_wifi_post_handler,
         .user_ctx = NULL
     };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &wifi_connect_uri));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &wifi_post_uri));
 
     httpd_uri_t common_get_uri = {
         .uri = "/*",  //

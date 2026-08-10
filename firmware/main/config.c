@@ -17,10 +17,12 @@ static bool g_config_changed = true;
 // Runtime configuration storage with fixed-size buffers,
 // initialized with defaults
 static config_entry_t g_configs[CFG_MAX] = {
+    // Project
     [CFG_PRJ_VERSION] = {"prj_version", PROJECT_VERSION},  //
     [CFG_BUILD_DATE] = {"build_date", BUILD_DATE},         //
     [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},         //
-    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},            //
+    // WiFi
+    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},  //
     [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},
 };
 
