@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include "lwip/apps/netbiosns.h"
 #include "mdns.h"
+#include "ntrip_client.h"
 #include "status.h"
 #include "wifi.h"
 
@@ -282,7 +283,8 @@ static esp_err_t server_wifi_post_handler(httpd_req_t* req)
         url_decode(ssid);
         url_decode(password);
 
-        ESP_LOGI(TAG, "connect SSID=%s, password=%s", ssid, password);
+        config_set(CFG_WIFI_SSID, ssid);
+        config_set(CFG_WIFI_PASSWORD, password);
 
         esp_err_t err = wifi_sta_connect(ssid, password);
         if (err != ESP_OK)
@@ -295,6 +297,113 @@ static esp_err_t server_wifi_post_handler(httpd_req_t* req)
         ESP_LOGI(TAG, "connection initiated");
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_send(req, "WiFi connection initiated", strlen("WiFi connection initiated"));
+        return ESP_OK;
+    }
+
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid command parameter");
+    return ESP_FAIL;
+}
+
+/* Handler for POST /ntripclient */
+static esp_err_t server_ntrip_client_post_handler(httpd_req_t* req)
+{
+    char query_str[512] = {0};
+    size_t query_len = httpd_req_get_url_query_len(req) + 1;
+
+    if (query_len > 1 && query_len <= sizeof(query_str))
+    {
+        if (httpd_req_get_url_query_str(req, query_str, query_len) != ESP_OK)
+        {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to get query parameters");
+            return ESP_FAIL;
+        }
+    }
+
+    char command[32] = {0};
+    if (httpd_query_key_value(query_str, "command", command, sizeof(command)) != ESP_OK)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command parameter");
+        return ESP_FAIL;
+    }
+
+    if (strcmp(command, "mountpoints") == 0)
+    {
+        char host[64] = {0};
+        char port_str[16] = {0};
+        char username[64] = {0};
+        char password[64] = {0};
+
+        httpd_query_key_value(query_str, "host", host, sizeof(host));
+        httpd_query_key_value(query_str, "port", port_str, sizeof(port_str));
+        httpd_query_key_value(query_str, "username", username, sizeof(username));
+        httpd_query_key_value(query_str, "password", password, sizeof(password));
+
+        url_decode(host);
+        url_decode(username);
+        url_decode(password);
+
+        config_set(CFG_NTRIP_SERVER, host);
+        config_set(CFG_NTRIP_PORT, port_str);
+        config_set(CFG_NTRIP_USERNAME, username);
+        config_set(CFG_NTRIP_PASSWORD, password);
+
+        uint16_t port = (uint16_t)atoi(port_str);
+        if (port == 0)
+        {
+            port = 2101;
+            config_set(CFG_NTRIP_PORT, "2101");
+        }
+
+        ntrip_client_get_mountpoints(host, port, username, password);
+
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_send(req, "Mountpoints request initiated", HTTPD_RESP_USE_STRLEN);
+        return ESP_OK;
+    }
+    else if (strcmp(command, "connect") == 0)
+    {
+        char host[64] = {0};
+        char port_str[16] = {0};
+        char mountpoint[64] = {0};
+        char username[64] = {0};
+        char password[64] = {0};
+
+        httpd_query_key_value(query_str, "host", host, sizeof(host));
+        httpd_query_key_value(query_str, "port", port_str, sizeof(port_str));
+        httpd_query_key_value(query_str, "mountpoint", mountpoint, sizeof(mountpoint));
+        httpd_query_key_value(query_str, "username", username, sizeof(username));
+        httpd_query_key_value(query_str, "password", password, sizeof(password));
+
+        url_decode(host);
+        url_decode(mountpoint);
+        url_decode(username);
+        url_decode(password);
+
+        config_set(CFG_NTRIP_SERVER, host);
+        config_set(CFG_NTRIP_PORT, port_str);
+        config_set(CFG_NTRIP_MOUNTPOINT, mountpoint);
+        config_set(CFG_NTRIP_USERNAME, username);
+        config_set(CFG_NTRIP_PASSWORD, password);
+
+        uint16_t port = (uint16_t)atoi(port_str);
+        if (port == 0)
+        {
+            port = 2101;
+            config_set(CFG_NTRIP_PORT, "2101");
+        }
+
+        ntrip_client_connect_stream(host, port, mountpoint, username, password);
+
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_send(req, "NTRIP streaming initiated", HTTPD_RESP_USE_STRLEN);
+        return ESP_OK;
+    }
+    else if (strcmp(command, "disconnect") == 0)
+    {
+        ntrip_client_disconnect_stream();
+
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_send(req, "NTRIP streaming stopped", HTTPD_RESP_USE_STRLEN);
         return ESP_OK;
     }
 
@@ -430,6 +539,14 @@ esp_err_t server_start(const char* base_path)
         .user_ctx = NULL
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &wifi_post_uri));
+
+    httpd_uri_t ntripclient_post_uri = {
+        .uri = "/ntripclient",  //
+        .method = HTTP_POST,
+        .handler = server_ntrip_client_post_handler,
+        .user_ctx = NULL
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ntripclient_post_uri));
 
     httpd_uri_t common_get_uri = {
         .uri = "/*",  //

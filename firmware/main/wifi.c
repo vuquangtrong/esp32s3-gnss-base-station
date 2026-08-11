@@ -91,9 +91,6 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         status_set(STT_STA_IP, ip_str);
         // Reset retry counter on successful connection
         s_wifi_sta_retry_num = 0;
-        // Save the connected SSID and password to config
-        config_set(CFG_WIFI_SSID, (const char*)s_wifi_sta_config.sta.ssid);
-        config_set(CFG_WIFI_PASSWORD, (const char*)s_wifi_sta_config.sta.password);
     }
 }
 

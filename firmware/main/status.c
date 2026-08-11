@@ -6,6 +6,7 @@
 #include "cJSON.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "ntrip_client.h"
 
 static const char* TAG = "status";
 
@@ -19,6 +20,9 @@ static status_entry_t g_status[STT_MAX] = {
     // WiFi Station
     [STT_STA_STATUS] = {.name = "sta_status", .type = STT_VALUE_INT, .value = {.i_value = WIFI_DISCONNECT}},
     [STT_STA_IP] = {.name = "sta_ip", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+    // NTRIP Client
+    [STT_NTRIP_CLIENT_STATUS] = {.name = "ntrip_client_status", .type = STT_VALUE_INT, .value = {.i_value = NTRIP_DISCONNECTED}},
+    [STT_NTRIP_RECEIVED_BYTES] = {.name = "ntrip_received_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
     // GNSS Mode
     [STT_GNSS_MODE] = {.name = "gnss_mode", .type = STT_VALUE_INT, .value = {.i_value = GNSS_ROVER}},
     // GNSS Position
@@ -189,6 +193,20 @@ const char* status_get_all(void)
             if (cJSON_AddStringToObject(root, g_status[i].name, g_status[i].value.str_value) == NULL)
             {
                 ESP_LOGW(TAG, "Failed to add status %s to JSON", g_status[i].name);
+            }
+        }
+    }
+
+    cJSON* mp_array = cJSON_AddArrayToObject(root, "ntrip_mountpoints");
+    if (mp_array != NULL)
+    {
+        int count = ntrip_client_get_mountpoint_count();
+        for (int i = 0; i < count; i++)
+        {
+            const char* mp = ntrip_client_get_mountpoint(i);
+            if (mp != NULL)
+            {
+                cJSON_AddItemToArray(mp_array, cJSON_CreateString(mp));
             }
         }
     }

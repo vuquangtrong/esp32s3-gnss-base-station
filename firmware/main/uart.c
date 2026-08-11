@@ -25,8 +25,13 @@ static QueueHandle_t g_uart2_event_queue = NULL;
 static TaskHandle_t g_uart1_task_handle = NULL;
 static TaskHandle_t g_uart2_task_handle = NULL;
 
-static void ublox_send_command(const char* msg)
+static void uart1_send_command(const char* msg)
 {
+    if (msg == NULL || strlen(msg) == 0)
+    {
+        return;
+    }
+
     static uint8_t buffer[64];
     uint32_t n = ubx_gen_cmd(msg, buffer);
     uart_write_bytes(UART1_NUM, buffer, n);
@@ -53,69 +58,49 @@ static void ublox_send_command(const char* msg)
 //      UBX and RTCM 3.3 input protocols are enabled by default.
 //      SPARTN input protocol is enabled by default.
 
-static void ublox_set_mode_test()
-{
-    // Confiure UBlox UART1
-
-    // Turn on output NMEA messages, but GGA only
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GGA_UART1 1");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GLL_UART1 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GSA_UART1 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GSV_UART1 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_RMC_UART1 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_VTG_UART1 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_TXT_UART1 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-NMEA 1");
-
-    // Configure UBlox UART2
-
-    // Turn on output NMEA messages, but GLL only
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GGA_UART2 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GLL_UART2 1");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GSA_UART2 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GSV_UART2 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_RMC_UART2 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_VTG_UART2 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_TXT_UART2 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-NMEA 1");
-
-    status_set(STT_GNSS_MODE, GNSS_ROVER);
-}
-
 static void ublox_set_mode_rover()
 {
-    // In ROVER mode, UBlox will be configured to:
-    // - output UBX messages on UART1 (TX), ESP32 receives them on UART1 to get
-    // position data from the UBlox
-    // - input RTCM3 messages on UART2 (RX), ESP32 sends them on UART2 to feed
-    // correction data to the UBlox
+    // In ROVER mode:
+    // ESP32 reads GGA and PVT messages from UBlox on UART1 (RX).
+    // ESP32 sends RTCM3 correction data to UBlox on UART2 (TX).
 
-    // Configure UBlox UART1
+    // UBlox UART1 TX
+    // enable NMEA protocol and enable GGA message
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GGA_UART1 10");  // once every 10 epochs
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GLL_UART1 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GSA_UART1 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GSV_UART1 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_RMC_UART1 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_VTG_UART1 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_TXT_UART1 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-NMEA 1");
+    // disable RTCM3 protocol,
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-RTCM3 0");
+    // enable UBX protocol, and enable NAV-PVT message
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-UBX_NAV_PVT_UART1 1");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-UBX 1");
 
-    // TX: turn off NMEA and RTCM3 protocols, enable UBX protocol, and enable
-    // NAV-PVT message output
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-NMEA 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-RTCM3 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-UBX 1");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-MSGOUT-UBX_NAV_PVT_UART1 1");
+    // UBlox UART1 RX
+    // disable NMEA protocol,
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-NMEA 0");
+    // disable RTCM3 protocol,
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-RTCM3 0");
+    // disable SPARTN protocol,
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-SPARTN 0");
+    // enable UBX protocol
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-UBX 1");
 
-    // RX: turn off NMEA, RTCM3 and SPARTN protocols, enable UBX protocol
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-NMEA 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-RTCM3 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-SPARTN 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1INPROT-UBX 1");
-
-    // Configure UBlox UART2
-
-    // TX: turn off NMEA, UBX protocols, enable RTCM3 protocol
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-NMEA 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-UBX 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-RTCM3 1");
-    // RX: turn off NMEA, UBX and SPARTN protocols, enable RTCM3 protocol
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-NMEA 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-UBX 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-SPARTN 0");
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-RTCM3 1");
+    // UBlox UART2 TX
+    // disable NMEA, UBX and RTCM3 protocols
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-NMEA 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-UBX 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-RTCM3 0");
+    // UBlox UART2 RX
+    // disable NMEA, UBX and SPARTN protocols, enable RTCM3 protocol
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-NMEA 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-UBX 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-SPARTN 0");
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2INPROT-RTCM3 1");
 
     status_set(STT_GNSS_MODE, GNSS_ROVER);
 }
@@ -200,9 +185,16 @@ static void uart1_task(void* arg)
                                 posted_count++;
                             }
 
-                            portENTER_CRITICAL(&g_uart1_buf_pool_spinlock);
-                            buf->ref_count = posted_count;
-                            portEXIT_CRITICAL(&g_uart1_buf_pool_spinlock);
+                            if (posted_count > 0)
+                            {
+                                portENTER_CRITICAL(&g_uart1_buf_pool_spinlock);
+                                buf->ref_count = posted_count;
+                                portEXIT_CRITICAL(&g_uart1_buf_pool_spinlock);
+                            }
+                            else
+                            {
+                                uart1_buf_release(buf);
+                            }
                         }
                         else
                         {
@@ -306,8 +298,8 @@ esp_err_t uart_init(void)
 
     // At startup, assume the UBlox is in its default baud rate of
     // UART_BAUD_RATE_DEF so, change all UART baud rates to UART_BAUD_RATE_HIGH
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART2-BAUDRATE " TOSTRING(UART_BAUD_RATE_HIGH));
-    ublox_send_command("CFG-VALSET 0 1 0 0 CFG-UART1-BAUDRATE " TOSTRING(UART_BAUD_RATE_HIGH));  // UART1 should be changed last
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART2-BAUDRATE " TOSTRING(UART_BAUD_RATE_HIGH));
+    uart1_send_command("CFG-VALSET 0 1 0 0 CFG-UART1-BAUDRATE " TOSTRING(UART_BAUD_RATE_HIGH));  // UART1 should be changed last
     vTaskDelay(pdMS_TO_TICKS(100));
 
     // Also change the ESP32 UART1 baud rate to UART_BAUD_RATE_HIGH
@@ -344,7 +336,7 @@ esp_err_t uart1_task_start(void)
         return ESP_ERR_INVALID_STATE;
     }
 
-    BaseType_t ret = xTaskCreate(uart1_task, "uart1_rx", 4096, NULL, 6, &g_uart1_task_handle);
+    BaseType_t ret = xTaskCreate(uart1_task, "uart1_rx", 8192, NULL, 6, &g_uart1_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG1, "failed to create UART task");
@@ -362,7 +354,7 @@ esp_err_t uart2_task_start(void)
         return ESP_ERR_INVALID_STATE;
     }
 
-    BaseType_t ret = xTaskCreate(uart2_task, "uart2_rx", 4096, NULL, 6, &g_uart2_task_handle);
+    BaseType_t ret = xTaskCreate(uart2_task, "uart2_rx", 8192, NULL, 6, &g_uart2_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG2, "failed to create UART task");
@@ -370,4 +362,15 @@ esp_err_t uart2_task_start(void)
     }
 
     return ESP_OK;
+}
+
+void uart2_send_data(const uint8_t* data, size_t length)
+{
+    if (!data || length == 0)
+    {
+        return;
+    }
+
+    uart_write_bytes(UART2_NUM, (const char*)data, length);
+    ESP_LOGI(TAG2, "sent %zu bytes", length);
 }

@@ -39,4 +39,6 @@ esp_err_t uart2_task_start(void);
 uart_buf_t* uart1_buf_acquire(void);
 void uart1_buf_release(uart_buf_t* buf);
 
+void uart2_send_data(const uint8_t* data, size_t length);
+
 #endif  // UART_H

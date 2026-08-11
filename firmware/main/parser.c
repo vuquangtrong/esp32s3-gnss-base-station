@@ -8,13 +8,64 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "ntrip_client.h"
 #include "status.h"
 
 static const char* TAG = "parser";
 
 static QueueHandle_t g_parser_queue = NULL;
 static TaskHandle_t g_parser_task_handle = NULL;
+static nmea_parser_ctx_t g_nmea_ctx = {0};
 static ubx_parser_ctx_t g_parser_ctx = {0};
+
+static void parser_process_nmea(nmea_parser_ctx_t* ctx, const uint8_t* data, uint16_t length)
+{
+    if (ctx == NULL || data == NULL || length == 0)
+    {
+        return;
+    }
+
+    for (uint16_t i = 0; i < length; i++)
+    {
+        uint8_t c = data[i];
+        if (c == '$')
+        {
+            ctx->buf[0] = '$';
+            ctx->idx = 1;
+            ctx->in_msg = true;
+        }
+        else if (ctx->in_msg)
+        {
+            if (c == '\n')
+            {
+                if (ctx->idx < NMEA_BUFFER_SIZE - 2)
+                {
+                    ctx->buf[ctx->idx++] = '\n';
+                    ctx->buf[ctx->idx] = '\0';
+
+                    if (strstr(ctx->buf, "GGA,") != NULL)
+                    {
+                        ntrip_client_set_gga(ctx->buf);
+                    }
+                }
+                ctx->in_msg = false;
+                ctx->idx = 0;
+            }
+            else
+            {
+                if (ctx->idx < NMEA_BUFFER_SIZE - 2)
+                {
+                    ctx->buf[ctx->idx++] = (char)c;
+                }
+                else
+                {
+                    ctx->in_msg = false;
+                    ctx->idx = 0;
+                }
+            }
+        }
+    }
+}
 
 static void parser_process_nav_pvt(const ubx_parser_ctx_t* ctx)
 {
@@ -79,7 +130,7 @@ static void parser_process_nav_pvt(const ubx_parser_ctx_t* ctx)
     status_set(STT_GNSS_FIX, fix_str);
 }
 
-static void parser_process_buf(ubx_parser_ctx_t* ctx, const uint8_t* data, uint16_t length)
+static void parser_process_ubx(ubx_parser_ctx_t* ctx, const uint8_t* data, uint16_t length)
 {
     if (ctx == NULL || data == NULL || length == 0)
     {
@@ -87,6 +138,7 @@ static void parser_process_buf(ubx_parser_ctx_t* ctx, const uint8_t* data, uint1
     }
 
     uint16_t i = 0;
+
     while (i < length)
     {
         switch (ctx->state)
@@ -200,6 +252,17 @@ static void parser_process_buf(ubx_parser_ctx_t* ctx, const uint8_t* data, uint1
     }
 }
 
+static void parser_process_buf(const uint8_t* data, uint16_t length)
+{
+    if (data == NULL || length == 0)
+    {
+        return;
+    }
+
+    parser_process_nmea(&g_nmea_ctx, data, length);
+    parser_process_ubx(&g_parser_ctx, data, length);
+}
+
 static void parser_task(void* arg)
 {
     uart_buf_t* buf = NULL;
@@ -213,7 +276,7 @@ static void parser_task(void* arg)
             {
                 if (buf->length > 0)
                 {
-                    parser_process_buf(&g_parser_ctx, buf->data, buf->length);
+                    parser_process_buf(buf->data, buf->length);
                 }
                 uart1_buf_release(buf);
                 buf = NULL;
@@ -229,6 +292,7 @@ esp_err_t parser_init(void)
         return ESP_OK;
     }
 
+    memset(&g_nmea_ctx, 0, sizeof(g_nmea_ctx));
     memset(&g_parser_ctx, 0, sizeof(g_parser_ctx));
 
     g_parser_queue = xQueueCreate(PARSER_QUEUE_SIZE, sizeof(uart_buf_t*));
@@ -254,7 +318,7 @@ esp_err_t parser_task_start(void)
         return ESP_OK;
     }
 
-    BaseType_t ret = xTaskCreate(parser_task, "parser_task", 2048, NULL, 5, &g_parser_task_handle);
+    BaseType_t ret = xTaskCreate(parser_task, "parser_task", 4096, NULL, 5, &g_parser_task_handle);
     if (ret != pdPASS)
     {
         ESP_LOGE(TAG, "failed to create parser task");

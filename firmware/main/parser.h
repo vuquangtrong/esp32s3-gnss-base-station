@@ -1,6 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -8,10 +9,18 @@
 #include "uart.h"
 
 #define PARSER_QUEUE_SIZE 32
+#define NMEA_BUFFER_SIZE  128
 #define UBX_SYNC1         0xB5
 #define UBX_SYNC2         0x62
 #define UBX_CLASS_NAV     0x01
 #define UBX_ID_NAV_PVT    0x07
+
+typedef struct
+{
+    char buf[NMEA_BUFFER_SIZE];
+    uint16_t idx;
+    bool in_msg;
+} nmea_parser_ctx_t;
 
 typedef struct __attribute__((packed))
 {

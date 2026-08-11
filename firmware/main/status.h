@@ -19,6 +19,13 @@ typedef enum
 
 typedef enum
 {
+    NTRIP_DISCONNECTED,
+    NTRIP_CONNECTING,
+    NTRIP_CONNECTED
+} ntrip_status_t;
+
+typedef enum
+{
     GNSS_ROVER,
     GNSS_BASE,
     GNSS_PPP
@@ -31,6 +38,9 @@ typedef enum
     // WiFi Station
     STT_STA_STATUS,
     STT_STA_IP,
+    // NTRIP Client
+    STT_NTRIP_CLIENT_STATUS,
+    STT_NTRIP_RECEIVED_BYTES,
     // GNSS Mode
     STT_GNSS_MODE,
     // GNSS Position

@@ -26,6 +26,21 @@
         padding-bottom: 0 !important;
       }
 
+      summary {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      summary > :nth-child(2) {
+        margin-left: auto;
+      }
+
+      input,
+      select {
+        font-weight: bold;
+      }
+
       .text-green {
         color: green;
       }
@@ -53,12 +68,14 @@
       <div class="container notification" x-text="message"></div>
     </template>
 
+    <!-- Status Bar -->
     <header class="container">
       <nav>
         <ul>
-          <li><strong>GNSS Station</strong></li>
-          <li x-show="heartbeat">
+          <li>
+            <kbd><span x-text="gnss_mode_text"></span></kbd>
             <svg
+              x-show="heartbeat"
               width="16"
               height="16"
               viewBox="0 0 16 16"
@@ -77,10 +94,10 @@
             <img src="/favicon.ico" width="24" height="24" />
           </li>
           <li>
-            <span x-text="bat_percent"></span>%
+            <span x-text="bat_percent_text"></span>%
             <img
               class="battery"
-              x-bind:src="bat_volt_icon"
+              x-bind:src="bat_percent_icon"
               width="24"
               height="24"
             />
@@ -89,89 +106,93 @@
       </nav>
     </header>
 
-    <main class="container grid">
+    <main class="container">
       <!-- GNSS Position -->
-      <article>
-        <header>
-          <nav>
-            <ul>
-              <li><strong>GNSS Position</strong></li>
-            </ul>
-            <ul>
-              <li>
-                <strong x-text="gnss_mode_text"></strong>
-              </li>
-            </ul>
-          </nav>
-        </header>
+      <details name="card_gnss_position" open>
+        <summary role="button" class="outline contrast">
+          <strong>GNSS Position</strong>
+          <span></span>
+        </summary>
 
         <form>
           <div
             class="grid"
-            style="grid-template-columns: 5rem 1fr; gap: 0; align-items: center"
-          >
-            <label>Latitude</label>
-            <input x-bind:value="status.gnss_lat" readonly />
-
-            <label>Longitude</label>
-            <input x-bind:value="status.gnss_lon" readonly />
-          </div>
-
-          <div
-            class="grid"
             style="
-              grid-template-columns: 5rem 1fr 1rem 1fr;
+              grid-template-columns: 6rem 2fr 0.5rem 1fr;
               gap: 0;
               align-items: center;
             "
           >
-            <label>Altitude</label>
+            <span>Latitude</span>
+            <input x-bind:value="status.gnss_lat" readonly />
+            <div></div>
+            <span>deg</span>
+
+            <!---->
+            <span>Longitude</span>
+            <input x-bind:value="status.gnss_lon" readonly />
+            <div></div>
+            <span>deg</span>
+
+            <!---->
+            <span>Altitude</span>
             <input x-bind:value="status.gnss_alt" readonly />
             <div></div>
-            <span>(m) ASL</span>
-          </div>
-          <div
-            class="grid"
-            style="grid-template-columns: 5rem 1fr; gap: 0; align-items: center"
-          >
-            <small>Datetime</small>
-            <small x-text="datetime"></small>
-          </div>
-          <div
-            class="grid"
-            style="
-              grid-template-columns: 5rem 1fr 2fr 1fr 1fr 2fr 1fr;
-              gap: 0;
-              align-items: center;
-            "
-          >
-            <small>Accuracy</small>
-            <small>hor</small>
-            <small x-text="status.gnss_hacc"></small><small>(m)</small>
-            <small>ver</small>
-            <small x-text="status.gnss_vacc"></small><small>(m)</small>
+            <span>m</span>
+
+            <!---->
+            <span>Accuracy</span>
+            <div
+              class="grid"
+              style="
+                grid-template-columns: 2rem 1fr 2rem 1fr;
+                gap: 0;
+                align-items: center;
+              "
+            >
+              <span>H</span>
+              <span
+                x-text="status.gnss_hacc <= 999 ? status.gnss_hacc : '---'"
+              ></span>
+              <span>V</span>
+              <span
+                x-text="status.gnss_vacc <= 999 ? status.gnss_vacc : '---'"
+              ></span>
+            </div>
+            <div></div>
+            <span>m</span>
+
+            <!---->
+            <span>Datetime</span>
+            <div
+              class="grid"
+              style="
+                grid-template-columns: 1fr 1fr;
+                gap: 0;
+                align-items: center;
+              "
+            >
+              <span x-text="gnss_date_text"></span>
+              <span x-text="gnss_time_text"></span>
+            </div>
+            <div></div>
+            <span></span>
           </div>
         </form>
-      </article>
+      </details>
 
       <!-- WiFi Settings -->
-      <article>
-        <header>
-          <nav>
-            <ul>
-              <li><strong>WiFi Settings</strong></li>
-            </ul>
-            <ul>
-              <li :class="sta_status_class" x-text="sta_status_text"></li>
-              <li x-text="status.sta_ip"></li>
-            </ul>
-          </nav>
-        </header>
+      <details name="card_wifi_settings" open>
+        <summary role="button" class="outline contrast">
+          <strong>WiFi Settings</strong>
+          <span :class="sta_status_class" x-text="sta_status_text"></span>
+          <span x-text="status.sta_ip"></span>
+        </summary>
 
         <form @submit.prevent="wifiConnect()">
           <div
             class="grid"
-            style="grid-template-columns: 5rem 1fr; gap: 0; align-items: center"
+            style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
           >
             <label for="ssid">WiFi AP</label>
             <input
@@ -190,10 +211,92 @@
             />
 
             <div></div>
-            <button type="submit" :disabled="is_sta_connecting">Connect</button>
+            <div class="grid" style="grid-template-columns: 1fr 1fr">
+              <div></div>
+              <button type="submit" :disabled="is_sta_connecting">
+                Connect
+              </button>
+            </div>
           </div>
         </form>
-      </article>
+      </details>
+
+      <!-- NTRIP Client Settings -->
+      <details name="card_ntrip_client_settings" open>
+        <summary role="button" class="outline contrast">
+          <strong>NTRIP Client</strong>
+          <span
+            :class="ntrip_client_status_class"
+            x-text="ntrip_client_status_text"
+          ></span>
+          <span x-text="ntrip_received_bytes_text"></span>
+        </summary>
+
+        <form @submit.prevent="ntripClientToggle()">
+          <div
+            class="grid"
+            style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+          >
+            <label for="ntrip_server">Ntrip Server</label>
+            <input
+              id="ntrip_server"
+              x-model="config.ntrip_server"
+              autocomplete="on"
+              required
+            />
+
+            <label for="ntrip_port">Ntrip Port</label>
+            <input
+              id="ntrip_port"
+              x-model="config.ntrip_port"
+              autocomplete="on"
+              required
+            />
+
+            <label for="ntrip_mountpoint">Mountpoint</label>
+            <select id="ntrip_mountpoint" x-model="config.ntrip_mountpoint">
+              <option
+                :value="config.ntrip_mountpoint"
+                x-text="config.ntrip_mountpoint"
+              ></option>
+              <template x-for="mp in status.ntrip_mountpoints" :key="mp">
+                <option :value="mp" x-text="mp"></option>
+              </template>
+            </select>
+
+            <label for="ntrip_username">Username</label>
+            <input
+              id="ntrip_username"
+              x-model="config.ntrip_username"
+              autocomplete="on"
+              required
+            />
+
+            <label for="ntrip_password">Password</label>
+            <input
+              id="ntrip_password"
+              x-model="config.ntrip_password"
+              autocomplete="on"
+              required
+            />
+
+            <div></div>
+            <div class="grid" style="grid-template-columns: 1fr 1fr">
+              <button
+                class="secondary"
+                type="button"
+                @click="ntripFetchMountpoints()"
+              >
+                Mountpoints
+              </button>
+              <button
+                type="submit"
+                x-text="is_ntrip_streaming ? 'Stop Streaming' : 'Start Streaming'"
+              ></button>
+            </div>
+          </div>
+        </form>
+      </details>
     </main>
 
     <footer class="container">
@@ -228,7 +331,7 @@
             if (msg) window.scrollTo(0, 0);
           },
 
-          get bat_percent() {
+          get bat_percent_text() {
             const volt = Number(this.status.bat_volt); // in range 1650-2100 mV
             return Math.max(
               0,
@@ -236,7 +339,7 @@
             );
           },
 
-          get bat_volt_icon() {
+          get bat_percent_icon() {
             const volt = Number(this.status.bat_volt); // in range 1650-2100 mV
             if (volt >= 2000) return "/bat_100.png";
             if (volt >= 1900) return "/bat_75.png";
@@ -268,14 +371,48 @@
             return statuses[this.status.sta_status] ?? "Disconnected";
           },
 
+          get gnss_date_text() {
+            // status.gnss_date and status.gnss_time is in UTC, should display in UTC+7
+            if (!this.status.gnss_date) return "---";
+            const utcDate = new Date(
+              `${this.status.gnss_date}T${this.status.gnss_time}Z`,
+            );
+            const localDate = new Date(utcDate.getTime() + 7 * 60 * 60 * 1000); // UTC+7
+            return localDate.toISOString().substr(0, 10);
+          },
+
+          get gnss_time_text() {
+            // status.gnss_date and status.gnss_time is in UTC, should display in UTC+7
+            if (!this.status.gnss_time) return "---";
+            const utcTime = new Date(
+              `${this.status.gnss_date}T${this.status.gnss_time}Z`,
+            );
+            const localTime = new Date(utcTime.getTime() + 7 * 60 * 60 * 1000); // UTC+7
+            return localTime.toISOString().substr(11, 8);
+          },
+
           get is_sta_connecting() {
             return Number(this.status.sta_status) === 1;
           },
 
-          get datetime() {
-            return this.status.gnss_date && this.status.gnss_time
-              ? `${this.status.gnss_date} ${this.status.gnss_time}`
-              : "";
+          get is_ntrip_streaming() {
+            return Number(this.status.ntrip_client_status) === 2;
+          },
+
+          get ntrip_client_status_class() {
+            const classes = ["text-red", "text-orange", "text-green"];
+            return classes[this.status.ntrip_client_status] ?? "text-red";
+          },
+
+          get ntrip_client_status_text() {
+            const statuses = ["Disconnected", "Connecting...", "Connected"];
+            return statuses[this.status.ntrip_client_status] ?? "Disconnected";
+          },
+
+          get ntrip_received_bytes_text() {
+            const bytes = Number(this.status.ntrip_received_bytes);
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
           },
 
           async request(url, options = {}) {
@@ -331,6 +468,45 @@
               "You may need to connect to the device's WiFi\nor the WiFi this device connects to.",
             );
             await this.request(`/wifi?${params}`, { method: "POST" });
+          },
+
+          async ntripFetchMountpoints() {
+            const params = new URLSearchParams({
+              command: "mountpoints",
+              host: this.config.ntrip_server || "",
+              port: this.config.ntrip_port || "",
+              username: this.config.ntrip_username || "",
+              password: this.config.ntrip_password || "",
+            });
+            await this.request(`/ntripclient?${params}`, { method: "POST" });
+          },
+
+          async ntripClientToggle() {
+            if (this.is_ntrip_streaming) {
+              await this.ntripClientDisconnect();
+            } else {
+              await this.ntripClientConnect();
+            }
+          },
+
+          async ntripClientConnect() {
+            const params = new URLSearchParams({
+              command: "connect",
+              host: this.config.ntrip_server || "",
+              port: this.config.ntrip_port || "",
+              mountpoint: this.config.ntrip_mountpoint || "",
+              username: this.config.ntrip_username || "",
+              password: this.config.ntrip_password || "",
+            });
+            this.status.ntrip_client_status = 1;
+            await this.request(`/ntripclient?${params}`, { method: "POST" });
+          },
+
+          async ntripClientDisconnect() {
+            const params = new URLSearchParams({
+              command: "disconnect",
+            });
+            await this.request(`/ntripclient?${params}`, { method: "POST" });
           },
 
           async init() {

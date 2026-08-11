@@ -21,6 +21,8 @@ GNSS_MODE = 0  # Options: 0 (ROVER), 1 (BASE), 2 (PPP)
 class StatusResponse:
     def __init__(self):
         self._start_time = None
+        self.ntrip_client_status = 0  # 0: Disconnected, 1: Connecting, 2: Connected
+        self.ntrip_mountpoints = ["VRS.105M6", "VRS.105M3", "VRS.105M0", "SINGLE.105M6"]
 
     def get_value(self):
         current_time = time()
@@ -36,6 +38,9 @@ class StatusResponse:
             # WiFi
             "sta_status": 0 if elapsed < 10 else (1 if elapsed < 20 else 2),
             "sta_ip": "" if elapsed < 20 else "192.168.1.100",
+            # NTRIP Client
+            "ntrip_client_status": self.ntrip_client_status,
+            "ntrip_mountpoints": self.ntrip_mountpoints,
             # GNSS Mode
             "gnss_mode": GNSS_MODE,
             # GNSS Position
@@ -65,11 +70,19 @@ statusResponse = StatusResponse()
 @app.route("/config")
 def get_config():
     return jsonify({
+        # Project
         "prj_version": "2.0",
         "build_date": "01/01/2026",
         "git_commit": "abcdef123",
+        # WiFi
         "wifi_ssid": "TrongIP",
-        "wifi_password": "asdfghjkl"
+        "wifi_password": "asdfghjkl",
+        # NTRIP Client
+        "ntrip_server": "vngeonet.vn",
+        "ntrip_port": "2101",
+        "ntrip_mountpoint": "VRS.105M6",
+        "ntrip_username": "OEgalaxy1",
+        "ntrip_password": "Ngangiang123@@"
     })
 
 
@@ -92,6 +105,29 @@ def wifi():
             return "Missing SSID or password", 400
 
         return "WiFi connection initiated", 200
+
+    return "Invalid command", 400
+
+
+@app.route("/ntripclient", methods=["POST"])
+def ntripclient():
+    command = request.args.get("command")
+
+    if command == "mountpoints":
+        statusResponse.ntrip_mountpoints = [
+            "VRS.105M6",
+            "VRS.105M3",
+            "VRS.105M0",
+            "SINGLE.105M6",
+            "SINGLE.105M3"
+        ]
+        return "Mountpoints request initiated", 200
+    elif command == "connect":
+        statusResponse.ntrip_client_status = 2
+        return "NTRIP streaming initiated", 200
+    elif command == "disconnect":
+        statusResponse.ntrip_client_status = 0
+        return "NTRIP streaming stopped", 200
 
     return "Invalid command", 400
 

@@ -8,6 +8,7 @@ set(srcs
     parser.c
     logger.c
     uart.c
+    ntrip_client.c
     main.c
 )
 
@@ -18,6 +19,7 @@ idf_component_register(SRCS ${srcs}
         esp_adc
         esp_wifi
         esp_http_server
+        esp_http_client
         esp_driver_gpio
         esp_driver_uart
     WHOLE_ARCHIVE

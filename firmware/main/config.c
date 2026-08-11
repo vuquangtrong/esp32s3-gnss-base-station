@@ -24,6 +24,12 @@ static config_entry_t g_configs[CFG_MAX] = {
     // WiFi
     [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},  //
     [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},
+    // NTRIP Client
+    [CFG_NTRIP_SERVER] = {"ntrip_server", "vngeonet.vn"},        //
+    [CFG_NTRIP_PORT] = {"ntrip_port", "2101"},                   //
+    [CFG_NTRIP_MOUNTPOINT] = {"ntrip_mountpoint", "VRS.105M6"},  //
+    [CFG_NTRIP_USERNAME] = {"ntrip_username", ""},               //
+    [CFG_NTRIP_PASSWORD] = {"ntrip_password", ""},               //
 };
 
 esp_err_t config_init(void)
