@@ -5,6 +5,17 @@
 CONFIG_IDF_TARGET="esp32s3"
 
 #
+# Bootloader config
+#
+
+#
+# Log
+#
+CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y
+# end of Log
+# end of Bootloader config
+
+#
 # Serial flasher config
 #
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
@@ -25,5 +36,42 @@ CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # ESP System Settings
 #
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+#
+# Cache config
+#
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+CONFIG_ESP32S3_INSTRUCTION_CACHE_LINE_32B=y
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
+# end of Cache config
 # end of ESP System Settings
+
+#
+# FreeRTOS
+#
+
+#
+# Kernel
+#
+CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
+# end of Kernel
+# end of FreeRTOS
+
+#
+# Log
+#
+
+#
+# Log Level
+#
+
+#
+# Level Settings
+#
+CONFIG_LOG_DYNAMIC_LEVEL_CONTROL=n
+CONFIG_LOG_TAG_LEVEL_IMPL_NONE=y
+# end of Level Settings
+# end of Log Level
+# end of Log
 # end of Component config
