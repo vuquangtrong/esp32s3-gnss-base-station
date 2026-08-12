@@ -21,6 +21,9 @@ static config_entry_t g_configs[CFG_MAX] = {
     [CFG_VERSION] = {"version", VERSION},           //
     [CFG_BUILD_TIME] = {"build_time", BUILD_TIME},  //
     [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},  //
+    // WiFi
+    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},            //
+    [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},  //
 };
 
 esp_err_t config_init(void)

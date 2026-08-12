@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "status.h"
+#include "wifi.h"
 
 void app_main(void)
 {
@@ -15,6 +16,7 @@ void app_main(void)
     printf("\nConfig: %s\n", config_get_all());
 
     ESP_ERROR_CHECK(battery_init());
+    ESP_ERROR_CHECK(wifi_init());
 
     char* stats_buffer = malloc(1024);
     if (stats_buffer == NULL)
@@ -25,7 +27,7 @@ void app_main(void)
 
     while (1)
     {
-        printf("\nBAT_VOLT: %d\n", status_get_int(STT_BAT_VOLT));
+        printf("\nStatus: %s\n", status_get_all());
 
         // Calculate uptime timestamp in seconds
         // int64_t time_us = esp_timer_get_time();

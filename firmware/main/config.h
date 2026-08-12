@@ -11,6 +11,9 @@ typedef enum
     CFG_VERSION,
     CFG_BUILD_TIME,
     CFG_GIT_COMMIT,
+    // WiFi
+    CFG_WIFI_SSID,
+    CFG_WIFI_PASSWORD,
     //
     CFG_MAX
 } config_type_t;

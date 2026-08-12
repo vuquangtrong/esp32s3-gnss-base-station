@@ -5,8 +5,18 @@
 
 typedef enum
 {
+    CONN_DISCONNECT,
+    CONN_CONNECTING,
+    CONN_CONNECTED
+} connection_status_t;
+
+typedef enum
+{
     // Battery
     STT_BAT_VOLT,
+    // WiFi
+    STT_WIFI_STATUS,
+    STT_WIFI_IP_ADDR,
     //
     STT_MAX
 } status_type_t;
@@ -46,9 +56,9 @@ const char* status_get_str(status_type_t key);
 const char* status_get_all(void);
 
 // Macro to automatically select the appropriate status_set function based on the type of the value passed in
-#define status_set(key, val)                                                                                                                                              \
-    _Generic((+val), int: status_set_int, long: status_set_int, double: status_set_double, float: status_set_double, char*: status_set_str, const char*: status_set_str)( \
-        key, val                                                                                                                                                          \
+#define status_set(key, val)                                                                                                                                             \
+    _Generic((val), int: status_set_int, long: status_set_int, double: status_set_double, float: status_set_double, char*: status_set_str, const char*: status_set_str)( \
+        key, val                                                                                                                                                         \
     )
 
 #endif  // STATUS_H

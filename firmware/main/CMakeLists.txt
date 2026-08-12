@@ -2,6 +2,7 @@ set(srcs
     config.c
     status.c
     battery.c
+    wifi.c
     main.c
 )
 
@@ -10,6 +11,7 @@ idf_component_register(SRCS ${srcs}
     REQUIRES
         nvs_flash
         esp_adc
+        esp_wifi
     WHOLE_ARCHIVE
 )
 
