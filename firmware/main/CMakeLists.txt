@@ -1,10 +1,15 @@
 set(srcs
+    config.c
+    status.c
+    battery.c
     main.c
 )
 
 idf_component_register(SRCS ${srcs}
     INCLUDE_DIRS "."
     REQUIRES
+        nvs_flash
+        esp_adc
     WHOLE_ARCHIVE
 )
 

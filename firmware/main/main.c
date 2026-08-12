@@ -1,12 +1,20 @@
 #include <stdio.h>
 
 // #include "esp_timer.h"
+#include "battery.h"
+#include "config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "status.h"
 
 void app_main(void)
 {
-    printf("V" VERSION " " GIT_COMMIT " " BUILD_TIME "\n");
+    printf("\nV" VERSION " " GIT_COMMIT " " BUILD_TIME "\n");
+
+    ESP_ERROR_CHECK(config_init());
+    printf("\nConfig: %s\n", config_get_all());
+
+    ESP_ERROR_CHECK(battery_init());
 
     char* stats_buffer = malloc(1024);
     if (stats_buffer == NULL)
@@ -17,6 +25,8 @@ void app_main(void)
 
     while (1)
     {
+        printf("\nBAT_VOLT: %d\n", status_get_int(STT_BAT_VOLT));
+
         // Calculate uptime timestamp in seconds
         // int64_t time_us = esp_timer_get_time();
         // uint32_t sec = (uint32_t)(time_us / 1000000ULL);
