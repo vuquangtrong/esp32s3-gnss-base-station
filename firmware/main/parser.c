@@ -14,9 +14,17 @@
 
 static const char* TAG = "parser";
 
+typedef enum
+{
+    SCAN_NONE,
+    SCAN_NMEA,
+    SCAN_UBX
+} scan_state_t;
+
 static TaskHandle_t g_parser_task_handle = NULL;
 static nmea_parser_ctx_t g_nmea_parser_ctx = {0};
 static ubx_parser_ctx_t g_ubx_parser_ctx = {0};
+static scan_state_t g_scan_active = SCAN_NONE;
 
 static char g_nmea_gga[NMEA_BUFFER_SIZE] = {0};
 
@@ -27,61 +35,12 @@ const char* parser_get_nmea_gga(void)
 
 static void parser_process_nmea_gga(const char* gga_sentence)
 {
-    if (gga_sentence == NULL || strlen(gga_sentence) == 0)
+    if (gga_sentence == NULL || gga_sentence[0] == '\0')
     {
         return;
     }
 
     strlcpy(g_nmea_gga, gga_sentence, NMEA_BUFFER_SIZE);
-}
-
-static void parser_process_nmea(nmea_parser_ctx_t* ctx, const uint8_t* data, uint16_t length)
-{
-    if (ctx == NULL || data == NULL || length == 0)
-    {
-        return;
-    }
-
-    for (uint16_t i = 0; i < length; i++)
-    {
-        uint8_t c = data[i];
-        if (c == '$')
-        {
-            ctx->buf[0] = '$';
-            ctx->idx = 1;
-            ctx->in_msg = true;
-        }
-        else if (ctx->in_msg)
-        {
-            if (c == '\n')
-            {
-                if (ctx->idx < NMEA_BUFFER_SIZE - 2)
-                {
-                    ctx->buf[ctx->idx++] = '\n';
-                    ctx->buf[ctx->idx] = '\0';
-
-                    if (strstr(ctx->buf, "GGA,") != NULL)
-                    {
-                        parser_process_nmea_gga((const char*)ctx->buf);
-                    }
-                }
-                ctx->in_msg = false;
-                ctx->idx = 0;
-            }
-            else
-            {
-                if (ctx->idx < NMEA_BUFFER_SIZE - 2)
-                {
-                    ctx->buf[ctx->idx++] = (char)c;
-                }
-                else
-                {
-                    ctx->in_msg = false;
-                    ctx->idx = 0;
-                }
-            }
-        }
-    }
 }
 
 static void parser_process_ubx_nav_pvt(const ubx_nav_pvt_t* pvt)
@@ -140,9 +99,9 @@ static void parser_process_ubx_nav_pvt(const ubx_nav_pvt_t* pvt)
     status_set(STT_GNSS_FIX, fix_str);
 }
 
-static void parser_process_ubx(ubx_parser_ctx_t* ctx, const uint8_t* data, uint16_t length)
+static void parser_process_data(nmea_parser_ctx_t* nmea_ctx, ubx_parser_ctx_t* ubx_ctx, const uint8_t* data, uint16_t length)
 {
-    if (ctx == NULL || data == NULL || length == 0)
+    if (nmea_ctx == NULL || ubx_ctx == NULL || data == NULL || length == 0)
     {
         return;
     }
@@ -151,115 +110,211 @@ static void parser_process_ubx(ubx_parser_ctx_t* ctx, const uint8_t* data, uint1
 
     while (i < length)
     {
-        switch (ctx->state)
+        switch (g_scan_active)
         {
-            case UBX_STATE_IDLE:
-                if (data[i] == UBX_SYNC1)
+            case SCAN_NONE:
+            {
+                uint8_t c = data[i];
+                if (c == '$')
                 {
-                    ctx->state = UBX_STATE_SYNC2;
+                    g_scan_active = SCAN_NMEA;
+                    nmea_ctx->buf[0] = '$';
+                    nmea_ctx->idx = 1;
+                    nmea_ctx->in_msg = true;
+                }
+                else if (c == UBX_SYNC1)
+                {
+                    g_scan_active = SCAN_UBX;
+                    ubx_ctx->state = UBX_STATE_SYNC2;
                 }
                 i++;
                 break;
+            }
 
-            case UBX_STATE_SYNC2:
-                if (data[i] == UBX_SYNC2)
+            case SCAN_NMEA:
+            {
+                uint8_t c = data[i];
+
+                if (c == '$')
                 {
-                    ctx->state = UBX_STATE_CLASS;
+                    // New NMEA sentence starts, restart accumulation
+                    nmea_ctx->buf[0] = '$';
+                    nmea_ctx->idx = 1;
+                    i++;
                 }
-                else if (data[i] == UBX_SYNC1)
+                else if (c == UBX_SYNC1)
                 {
-                    ctx->state = UBX_STATE_SYNC2;
+                    // 0xB5 is outside valid ASCII — this is a UBX start, not NMEA data
+                    nmea_ctx->in_msg = false;
+                    nmea_ctx->idx = 0;
+                    g_scan_active = SCAN_NONE;
+                    // Don't increment i — let SCAN pick up this 0xB5
                 }
-                else
+                else if (c == '\n')
                 {
-                    ctx->state = UBX_STATE_IDLE;
-                }
-                i++;
-                break;
-
-            case UBX_STATE_CLASS:
-                ctx->msg_class = data[i];
-                ctx->state = UBX_STATE_ID;
-                i++;
-                break;
-
-            case UBX_STATE_ID:
-                ctx->msg_id = data[i];
-                ctx->state = UBX_STATE_LEN_L;
-                i++;
-                break;
-
-            case UBX_STATE_LEN_L:
-                ctx->payload_len = (uint16_t)data[i];
-                ctx->state = UBX_STATE_LEN_H;
-                i++;
-                break;
-
-            case UBX_STATE_LEN_H:
-                ctx->payload_len |= ((uint16_t)data[i] << 8);
-                ctx->payload_idx = 0;
-                i++;
-                if (ctx->msg_class == UBX_CLASS_NAV && ctx->msg_id == UBX_ID_NAV_PVT && ctx->payload_len == sizeof(ubx_nav_pvt_t))
-                {
-                    ctx->state = UBX_STATE_PAYLOAD;
-                }
-                else
-                {
-                    ctx->skip_bytes_remaining = ctx->payload_len + 2;
-                    if (ctx->skip_bytes_remaining == 0)
+                    if (nmea_ctx->idx < NMEA_BUFFER_SIZE - 2)
                     {
-                        ctx->state = UBX_STATE_IDLE;
+                        nmea_ctx->buf[nmea_ctx->idx++] = '\n';
+                        nmea_ctx->buf[nmea_ctx->idx] = '\0';
+
+                        if (nmea_ctx->idx > 6 && memcmp(&nmea_ctx->buf[3], "GGA,", 4) == 0)
+                        {
+                            parser_process_nmea_gga((const char*)nmea_ctx->buf);
+                        }
+                    }
+                    nmea_ctx->in_msg = false;
+                    nmea_ctx->idx = 0;
+                    g_scan_active = SCAN_NONE;
+                    i++;
+                }
+                else
+                {
+                    if (nmea_ctx->idx < NMEA_BUFFER_SIZE - 2)
+                    {
+                        nmea_ctx->buf[nmea_ctx->idx++] = (char)c;
+                        i++;
                     }
                     else
                     {
-                        ctx->state = UBX_STATE_SKIP;
+                        // Overflow — abandon this sentence, let SCAN re-examine this byte
+                        nmea_ctx->in_msg = false;
+                        nmea_ctx->idx = 0;
+                        g_scan_active = SCAN_NONE;
                     }
-                }
-                break;
-
-            case UBX_STATE_PAYLOAD:
-            {
-                uint16_t bytes_needed = (uint16_t)sizeof(ubx_nav_pvt_t) - ctx->payload_idx;
-                uint16_t bytes_avail = length - i;
-                uint16_t chunk_size = (bytes_needed < bytes_avail) ? bytes_needed : bytes_avail;
-
-                if (chunk_size > 0)
-                {
-                    memcpy(&ctx->payload[ctx->payload_idx], &data[i], chunk_size);
-                    ctx->payload_idx += chunk_size;
-                    i += chunk_size;
-                }
-
-                if (ctx->payload_idx >= sizeof(ubx_nav_pvt_t))
-                {
-                    parser_process_ubx_nav_pvt((const ubx_nav_pvt_t*)ctx->payload);
-                    ctx->skip_bytes_remaining = 2;
-                    ctx->state = UBX_STATE_SKIP;
                 }
                 break;
             }
 
-            case UBX_STATE_SKIP:
+            case SCAN_UBX:
             {
-                uint16_t bytes_avail = length - i;
-                uint16_t skip_count = (ctx->skip_bytes_remaining < bytes_avail) ? ctx->skip_bytes_remaining : bytes_avail;
-
-                ctx->skip_bytes_remaining -= skip_count;
-                i += skip_count;
-
-                if (ctx->skip_bytes_remaining == 0)
+                switch (ubx_ctx->state)
                 {
-                    ctx->state = UBX_STATE_IDLE;
+                    case UBX_STATE_SYNC2:
+                        if (data[i] == UBX_SYNC2)
+                        {
+                            ubx_ctx->state = UBX_STATE_CLASS;
+                            i++;
+                        }
+                        else if (data[i] == UBX_SYNC1)
+                        {
+                            // Another 0xB5, stay in SYNC2
+                            i++;
+                        }
+                        else
+                        {
+                            // Not a valid UBX frame, let SCAN re-examine this byte
+                            ubx_ctx->state = UBX_STATE_IDLE;
+                            g_scan_active = SCAN_NONE;
+                        }
+                        break;
+
+                    case UBX_STATE_CLASS:
+                        ubx_ctx->msg_class = data[i];
+                        ubx_ctx->state = UBX_STATE_ID;
+                        i++;
+                        break;
+
+                    case UBX_STATE_ID:
+                        ubx_ctx->msg_id = data[i];
+                        ubx_ctx->state = UBX_STATE_LEN_L;
+                        i++;
+                        break;
+
+                    case UBX_STATE_LEN_L:
+                        ubx_ctx->payload_len = (uint16_t)data[i];
+                        ubx_ctx->state = UBX_STATE_LEN_H;
+                        i++;
+                        break;
+
+                    case UBX_STATE_LEN_H:
+                        ubx_ctx->payload_len |= ((uint16_t)data[i] << 8);
+                        ubx_ctx->payload_idx = 0;
+                        i++;
+                        if (ubx_ctx->payload_len > UBX_PAYLOAD_LEN_MAX)
+                        {
+                            // Corrupt length — abandon frame, return to scan
+                            ubx_ctx->state = UBX_STATE_IDLE;
+                            g_scan_active = SCAN_NONE;
+                        }
+                        else if (ubx_ctx->msg_class == UBX_CLASS_NAV && ubx_ctx->msg_id == UBX_ID_NAV_PVT && ubx_ctx->payload_len == sizeof(ubx_nav_pvt_t))
+                        {
+                            ubx_ctx->state = UBX_STATE_PAYLOAD;
+                        }
+                        else
+                        {
+                            ubx_ctx->skip_bytes_remaining = ubx_ctx->payload_len + 2;
+                            if (ubx_ctx->skip_bytes_remaining == 0)
+                            {
+                                ubx_ctx->state = UBX_STATE_IDLE;
+                                g_scan_active = SCAN_NONE;
+                            }
+                            else
+                            {
+                                ubx_ctx->state = UBX_STATE_SKIP;
+                            }
+                        }
+                        break;
+
+                    case UBX_STATE_PAYLOAD:
+                    {
+                        uint16_t bytes_needed = (uint16_t)sizeof(ubx_nav_pvt_t) - ubx_ctx->payload_idx;
+                        uint16_t bytes_avail = length - i;
+                        uint16_t chunk_size = (bytes_needed < bytes_avail) ? bytes_needed : bytes_avail;
+
+                        if (chunk_size > 0)
+                        {
+                            memcpy(&ubx_ctx->payload[ubx_ctx->payload_idx], &data[i], chunk_size);
+                            ubx_ctx->payload_idx += chunk_size;
+                            i += chunk_size;
+                        }
+
+                        if (ubx_ctx->payload_idx >= sizeof(ubx_nav_pvt_t))
+                        {
+                            parser_process_ubx_nav_pvt((const ubx_nav_pvt_t*)ubx_ctx->payload);
+                            ubx_ctx->skip_bytes_remaining = 2;
+                            ubx_ctx->state = UBX_STATE_SKIP;
+                        }
+                        break;
+                    }
+
+                    case UBX_STATE_SKIP:
+                    {
+                        uint16_t bytes_avail = length - i;
+                        uint16_t skip_count = (ubx_ctx->skip_bytes_remaining < bytes_avail) ? ubx_ctx->skip_bytes_remaining : bytes_avail;
+
+                        ubx_ctx->skip_bytes_remaining -= skip_count;
+                        i += skip_count;
+
+                        if (ubx_ctx->skip_bytes_remaining == 0)
+                        {
+                            ubx_ctx->state = UBX_STATE_IDLE;
+                            g_scan_active = SCAN_NONE;
+                        }
+                        break;
+                    }
+
+                    default:
+                        ubx_ctx->state = UBX_STATE_IDLE;
+                        g_scan_active = SCAN_NONE;
+                        i++;
+                        break;
                 }
                 break;
             }
 
             default:
-                ctx->state = UBX_STATE_IDLE;
+                g_scan_active = SCAN_NONE;
                 i++;
                 break;
         }
     }
+}
+
+static void parser_reset(void)
+{
+    memset(&g_nmea_parser_ctx, 0, sizeof(g_nmea_parser_ctx));
+    memset(&g_ubx_parser_ctx, 0, sizeof(g_ubx_parser_ctx));
+    g_scan_active = SCAN_NONE;
 }
 
 static void parser_task(void* arg)
@@ -292,8 +347,7 @@ static void parser_task(void* arg)
                         int len = uart_read_bytes(UART1_PORT, rx_buf, read_len, pdMS_TO_TICKS(100));
                         if (len > 0)
                         {
-                            parser_process_nmea(&g_nmea_parser_ctx, rx_buf, (uint16_t)len);
-                            parser_process_ubx(&g_ubx_parser_ctx, rx_buf, (uint16_t)len);
+                            parser_process_data(&g_nmea_parser_ctx, &g_ubx_parser_ctx, rx_buf, (uint16_t)len);
                         }
                         else
                         {
@@ -307,11 +361,13 @@ static void parser_task(void* arg)
                     ESP_LOGW(TAG, "UART1 hw fifo overflow");
                     uart_flush_input(UART1_PORT);
                     xQueueReset(uart1_queue);
+                    parser_reset();
                     break;
                 case UART_BUFFER_FULL:
                     ESP_LOGW(TAG, "UART1 ring buffer full");
                     uart_flush_input(UART1_PORT);
                     xQueueReset(uart1_queue);
+                    parser_reset();
                     break;
                 default:
                     break;
@@ -322,8 +378,7 @@ static void parser_task(void* arg)
 
 esp_err_t parser_init(void)
 {
-    memset(&g_nmea_parser_ctx, 0, sizeof(g_nmea_parser_ctx));
-    memset(&g_ubx_parser_ctx, 0, sizeof(g_ubx_parser_ctx));
+    parser_reset();
 
     if (xTaskCreate(parser_task, "parser", 2048, NULL, 5, &g_parser_task_handle) != pdPASS)
     {

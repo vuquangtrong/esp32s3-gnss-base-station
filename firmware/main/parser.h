@@ -9,10 +9,11 @@
 
 #define NMEA_BUFFER_SIZE 128
 
-#define UBX_SYNC1      0xB5
-#define UBX_SYNC2      0x62
-#define UBX_CLASS_NAV  0x01
-#define UBX_ID_NAV_PVT 0x07
+#define UBX_PAYLOAD_LEN_MAX 10240
+#define UBX_SYNC1           0xB5
+#define UBX_SYNC2           0x62
+#define UBX_CLASS_NAV       0x01
+#define UBX_ID_NAV_PVT      0x07
 
 typedef struct
 {
