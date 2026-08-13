@@ -5,6 +5,13 @@
 
 typedef enum
 {
+    GNSS_ROVER,
+    GNSS_BASE,
+    GNSS_PPP
+} gnss_mode_t;
+
+typedef enum
+{
     CONN_DISCONNECT,
     CONN_CONNECTING,
     CONN_CONNECTED
@@ -17,6 +24,17 @@ typedef enum
     // WiFi
     STT_WIFI_STATUS,
     STT_WIFI_IP_ADDR,
+    // GNSS Mode
+    STT_GNSS_MODE,
+    // GNSS Position
+    STT_GNSS_TIME,
+    STT_GNSS_LAT,
+    STT_GNSS_LON,
+    STT_GNSS_ALT,
+    STT_GNSS_SAT,
+    STT_GNSS_HACC,
+    STT_GNSS_VACC,
+    STT_GNSS_FIX,
     //
     STT_MAX
 } status_type_t;

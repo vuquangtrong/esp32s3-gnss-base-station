@@ -5,30 +5,24 @@
 #include "config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "gnss.h"
+#include "parser.h"
 #include "status.h"
+#include "uart.h"
 #include "wifi.h"
 
-void app_main(void)
+static void monitor_task(void* args)
 {
-    printf("\nV" VERSION " " GIT_COMMIT " " BUILD_TIME "\n");
-
-    ESP_ERROR_CHECK(config_init());
-    printf("\nConfig: %s\n", config_get_all());
-
-    ESP_ERROR_CHECK(battery_init());
-    ESP_ERROR_CHECK(wifi_init());
-
     char* stats_buffer = malloc(1024);
     if (stats_buffer == NULL)
     {
         printf("Failed to allocate memory for stats buffer!\n");
+        vTaskDelete(NULL);
         return;
     }
 
     while (1)
     {
-        printf("\nStatus: %s\n", status_get_all());
-
         // Calculate uptime timestamp in seconds
         // int64_t time_us = esp_timer_get_time();
         // uint32_t sec = (uint32_t)(time_us / 1000000ULL);
@@ -54,4 +48,21 @@ void app_main(void)
 
     // Cleanup (though loop runs infinitely)
     free(stats_buffer);
+}
+
+void app_main(void)
+{
+    printf("\nV" VERSION " " GIT_COMMIT " " BUILD_TIME "\n");
+
+    ESP_ERROR_CHECK(config_init());
+    ESP_ERROR_CHECK(battery_init());
+    ESP_ERROR_CHECK(wifi_init());
+    ESP_ERROR_CHECK(uart_init());
+
+    gnss_set_mode_rover();
+
+    ESP_ERROR_CHECK(parser_init());
+
+    // Pin to core 1 so it doesn't interrupt time-critical core 0 tasks
+    xTaskCreatePinnedToCore(monitor_task, "monitor", 1536, NULL, 1, NULL, 1);
 }

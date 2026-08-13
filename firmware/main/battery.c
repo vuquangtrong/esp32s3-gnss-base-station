@@ -94,9 +94,7 @@ esp_err_t battery_init()
         g_adc_cali_handle = NULL;
     }
 
-    BaseType_t task_created = xTaskCreate(battery_task, "battery", 1024, NULL, 1, NULL);
-
-    if (task_created != pdPASS)
+    if (xTaskCreate(battery_task, "battery", 1024, NULL, 1, NULL) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to create battery task");
         return ESP_FAIL;

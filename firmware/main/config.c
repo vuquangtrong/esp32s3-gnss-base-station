@@ -70,7 +70,7 @@ esp_err_t config_init(void)
         if (err == ESP_OK)
         {
             // Value exists in NVS, copy from buffer
-            snprintf(g_configs[i].value, length, "%s", buffer);
+            strlcpy(g_configs[i].value, buffer, CFG_VALUE_LENGTH_MAX);
             ESP_LOGI(TAG, "Loaded from NVS %s: %s", g_configs[i].name, g_configs[i].value);
         }
         else
@@ -124,7 +124,7 @@ esp_err_t config_set(config_type_t key, const char* value)
     }
 
     // Update in memory
-    snprintf(g_configs[key].value, CFG_VALUE_LENGTH_MAX, "%s", value);
+    strlcpy(g_configs[key].value, value, CFG_VALUE_LENGTH_MAX);
 
     // Mark config as changed to regenerate JSON
     g_config_changed = true;

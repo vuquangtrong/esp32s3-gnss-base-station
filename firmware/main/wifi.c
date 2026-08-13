@@ -133,8 +133,8 @@ esp_netif_t* wifi_init_sta(void)
     esp_netif_t* esp_netif_sta = esp_netif_create_default_wifi_sta();
 
     // set station configuration
-    snprintf((char*)g_wifi_sta_config.sta.ssid, sizeof(g_wifi_sta_config.sta.ssid), "%s", config_get(CFG_WIFI_SSID));
-    snprintf((char*)g_wifi_sta_config.sta.password, sizeof(g_wifi_sta_config.sta.password), "%s", config_get(CFG_WIFI_PASSWORD));
+    strlcpy((char*)g_wifi_sta_config.sta.ssid, config_get(CFG_WIFI_SSID), sizeof(g_wifi_sta_config.sta.ssid));
+    strlcpy((char*)g_wifi_sta_config.sta.password, config_get(CFG_WIFI_PASSWORD), sizeof(g_wifi_sta_config.sta.password));
     g_wifi_sta_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
     g_wifi_sta_config.sta.failure_retry_cnt = 10;
     g_wifi_sta_config.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
@@ -194,8 +194,8 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
     if (ssid != NULL && password != NULL)
     {
         // Update station configuration with new credentials
-        snprintf((char*)g_wifi_sta_config.sta.ssid, sizeof(g_wifi_sta_config.sta.ssid), "%s", ssid);
-        snprintf((char*)g_wifi_sta_config.sta.password, sizeof(g_wifi_sta_config.sta.password), "%s", password);
+        strlcpy((char*)g_wifi_sta_config.sta.ssid, ssid, sizeof(g_wifi_sta_config.sta.ssid));
+        strlcpy((char*)g_wifi_sta_config.sta.password, password, sizeof(g_wifi_sta_config.sta.password));
 
         ESP_LOGI(TAG_STA, "Updated WiFi config SSID:%s password:%s", g_wifi_sta_config.sta.ssid, g_wifi_sta_config.sta.password);
 

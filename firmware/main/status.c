@@ -18,6 +18,17 @@ static status_entry_t g_status[STT_MAX] = {
     // WiFi
     [STT_WIFI_STATUS] = {.name = "wifi_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECT}},
     [STT_WIFI_IP_ADDR] = {.name = "wifi_ip_addr", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+    // GNSS Mode
+    [STT_GNSS_MODE] = {.name = "gnss_mode", .type = STT_VALUE_INT, .value = {.i_value = GNSS_ROVER}},
+    // GNSS Position
+    [STT_GNSS_TIME] = {.name = "gnss_time", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+    [STT_GNSS_LAT] = {.name = "gnss_lat", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
+    [STT_GNSS_LON] = {.name = "gnss_lon", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
+    [STT_GNSS_ALT] = {.name = "gnss_alt", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
+    [STT_GNSS_SAT] = {.name = "gnss_sat", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    [STT_GNSS_HACC] = {.name = "gnss_hacc", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
+    [STT_GNSS_VACC] = {.name = "gnss_vacc", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
+    [STT_GNSS_FIX] = {.name = "gnss_fix", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
 };
 
 const char* status_name(status_type_t key)
@@ -86,7 +97,7 @@ void status_set_str(status_type_t key, const char* value)
 
     if (strcmp(g_status[key].value.str_value, value) != 0)
     {
-        snprintf(g_status[key].value.str_value, STT_VALUE_LENGTH_MAX, "%s", value);
+        strlcpy(g_status[key].value.str_value, value, STT_VALUE_LENGTH_MAX);
         g_status_changed = true;
     }
 }
@@ -122,7 +133,7 @@ const char* status_get_str(status_type_t key)
         return "";
     }
 
-    snprintf(buf, STT_VALUE_LENGTH_MAX, "%s", g_status[key].value.str_value);
+    strlcpy(buf, g_status[key].value.str_value, STT_VALUE_LENGTH_MAX);
     return buf;
 }
 

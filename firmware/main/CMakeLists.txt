@@ -3,6 +3,10 @@ set(srcs
     status.c
     battery.c
     wifi.c
+    ublox.c
+    gnss.c
+    parser.c
+    uart.c
     main.c
 )
 
@@ -12,6 +16,8 @@ idf_component_register(SRCS ${srcs}
         nvs_flash
         esp_adc
         esp_wifi
+        esp_driver_gpio
+        esp_driver_uart
     WHOLE_ARCHIVE
 )
 
