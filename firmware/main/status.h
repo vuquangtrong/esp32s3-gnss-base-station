@@ -19,6 +19,13 @@ typedef enum
 
 typedef enum
 {
+    SDCARD_REMOVED,
+    SDCARD_MOUNTED,
+    SDCARD_ERROR
+} sdcard_state_t;
+
+typedef enum
+{
     // Battery
     STT_BAT_VOLT,
     // WiFi
@@ -35,6 +42,8 @@ typedef enum
     STT_GNSS_HACC,
     STT_GNSS_VACC,
     STT_GNSS_FIX,
+    // SDCard
+    STT_SDCARD_STATUS,
     //
     STT_MAX
 } status_type_t;

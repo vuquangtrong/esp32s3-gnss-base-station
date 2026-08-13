@@ -7,6 +7,7 @@ set(srcs
     gnss.c
     parser.c
     uart.c
+    sdcard.c
     main.c
 )
 
@@ -14,6 +15,7 @@ idf_component_register(SRCS ${srcs}
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash
+        fatfs
         esp_adc
         esp_wifi
         esp_driver_gpio
@@ -29,3 +31,7 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE
     GIT_COMMIT="${GIT_COMMIT}"
     BUILD_TIME="${BUILD_TIME}"
 )
+
+if(NOT CONFIG_SOC_SDMMC_HOST_SUPPORTED)
+    message(FATAL_ERROR "SDMMC host must be supported on this target")
+endif()

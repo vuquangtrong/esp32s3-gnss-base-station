@@ -7,7 +7,7 @@ Project structure:
 
 Technical Stack:
 
-- Target on ESP32-S3, using [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
+- Target on ESP32-S3, using [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html), at least ESP-IDF 6.0.2
 - Frontend Webpage uses [Pico.css](https://picocss.com/) for styling, and [Alpine.js](https://alpinejs.dev/) for reactive data binding and elements.
 
 Development best practices and rules:

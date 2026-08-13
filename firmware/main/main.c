@@ -7,6 +7,7 @@
 #include "freertos/task.h"
 #include "gnss.h"
 #include "parser.h"
+#include "sdcard.h"
 #include "status.h"
 #include "uart.h"
 #include "wifi.h"
@@ -58,6 +59,7 @@ void app_main(void)
     ESP_ERROR_CHECK(battery_init());
     ESP_ERROR_CHECK(wifi_init());
     ESP_ERROR_CHECK(uart_init());
+    ESP_ERROR_CHECK(sdcard_init());
 
     gnss_set_mode_rover();
 
