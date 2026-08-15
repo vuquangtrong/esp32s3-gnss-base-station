@@ -70,6 +70,11 @@ QueueHandle_t uart1_get_event_queue(void)
     return g_uart1_event_queue;
 }
 
+QueueHandle_t uart2_get_event_queue(void)
+{
+    return g_uart2_event_queue;
+}
+
 void uart1_send_command(const char* msg)
 {
     if (!msg || strlen(msg) == 0)

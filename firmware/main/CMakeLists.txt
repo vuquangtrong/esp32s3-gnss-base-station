@@ -8,6 +8,7 @@ set(srcs
     parser.c
     uart.c
     sdcard.c
+    logger.c
     main.c
 )
 

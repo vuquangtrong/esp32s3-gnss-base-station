@@ -31,6 +31,10 @@ static status_entry_t g_status[STT_MAX] = {
     [STT_GNSS_FIX] = {.name = "gnss_fix", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
     // SDCard
     [STT_SDCARD_STATUS] = {.name = "sdcard_status", .type = STT_VALUE_INT, .value = {.i_value = SDCARD_REMOVED}},
+    // Logger
+    [STT_LOGGER_FILE] = {.name = "logger_file", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+    [STT_LOGGER_STATUS] = {.name = "logger_status", .type = STT_VALUE_INT, .value = {.i_value = LOGGER_STOPPED}},
+    [STT_LOGGER_BYTES] = {.name = "logger_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
 };
 
 const char* status_name(status_type_t key)

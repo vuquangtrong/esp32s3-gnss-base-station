@@ -27,6 +27,7 @@
 esp_err_t uart_init(void);
 
 QueueHandle_t uart1_get_event_queue(void);
+QueueHandle_t uart2_get_event_queue(void);
 
 void uart1_send_command(const char* command);
 void uart2_send_data(const uint8_t* data, size_t length);
