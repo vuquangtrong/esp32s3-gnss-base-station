@@ -93,14 +93,14 @@ static void parser_process_ubx_nav_pvt(const ubx_nav_pvt_t* pvt)
 
     char str_buf[64] = {0};
 
-    snprintf(str_buf, sizeof(str_buf), "%04u-%02u-%02uT%02u:%02u:%02u", pvt->year, pvt->month, pvt->day, pvt->hour, pvt->min, pvt->sec);
+    snprintf(str_buf, sizeof(str_buf), "%04u-%02u-%02u_%02u-%02u-%02u", pvt->year, pvt->month, pvt->day, pvt->hour, pvt->min, pvt->sec);
     status_set(STT_GNSS_TIME, str_buf);
-    status_set(STT_GNSS_LAT, (double)pvt->lat * 1e-7);
-    status_set(STT_GNSS_LON, (double)pvt->lon * 1e-7);
-    status_set(STT_GNSS_ALT, (double)pvt->hMSL / 1000.0);
+    status_set(STT_GNSS_LAT, (double)pvt->lat);
+    status_set(STT_GNSS_LON, (double)pvt->lon);
+    status_set(STT_GNSS_ALT, (double)pvt->hMSL);
     status_set(STT_GNSS_SAT, (int)pvt->numSV);
-    status_set(STT_GNSS_HACC, (double)pvt->hAcc / 1000.0);
-    status_set(STT_GNSS_VACC, (double)pvt->vAcc / 1000.0);
+    status_set(STT_GNSS_HACC, (double)pvt->hAcc);
+    status_set(STT_GNSS_VACC, (double)pvt->vAcc);
 
     const char* fix_str = "NO FIX";
     uint8_t carr_soln = (pvt->flags >> 6) & 0x03;

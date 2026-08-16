@@ -23,6 +23,12 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 # end of Serial flasher config
 
 #
+# Partition Table
+#
+CONFIG_PARTITION_TABLE_CUSTOM=y
+# end of Partition Table
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_PERF=y

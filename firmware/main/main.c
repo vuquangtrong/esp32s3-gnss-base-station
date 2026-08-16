@@ -8,6 +8,7 @@
 #include "gnss.h"
 #include "parser.h"
 #include "sdcard.h"
+#include "server.h"
 #include "status.h"
 #include "uart.h"
 #include "wifi.h"
@@ -64,6 +65,7 @@ void app_main(void)
     gnss_set_mode_rover();
 
     ESP_ERROR_CHECK(parser_init());
+    ESP_ERROR_CHECK(server_init());
 
     // Pin to core 1 so it doesn't interrupt time-critical core 0 tasks
     xTaskCreatePinnedToCore(monitor_task, "monitor", 1536, NULL, 1, NULL, 1);

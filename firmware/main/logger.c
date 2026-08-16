@@ -40,7 +40,7 @@ static void logger_flush(void)
     }
 
     size_t written = sdcard_write(g_log_file, g_write_buffer, g_write_buffer_pos);
-    status_set(STT_LOGGER_BYTES, status_get_int(STT_LOGGER_BYTES) + (int)written);
+    status_set(STT_LOGGER_SIZE, status_get_int(STT_LOGGER_SIZE) + (int)written);
     if (written != g_write_buffer_pos)
     {
         ESP_LOGW(TAG, "partial write: %zu / %zu bytes", written, g_write_buffer_pos);
@@ -224,7 +224,7 @@ esp_err_t logger_start(const char* filename)
     // Update status to indicate logger is running
     status_set(STT_LOGGER_FILE, filename);
     status_set(STT_LOGGER_STATUS, LOGGER_RUNNING);
-    status_set(STT_LOGGER_BYTES, 0);
+    status_set(STT_LOGGER_SIZE, 0);
 
     ESP_LOGI(TAG, "started logging to %s (buffer %d KB)", filename, LOGGER_WRITE_BUFFER_SIZE / 1024);
     return ESP_OK;

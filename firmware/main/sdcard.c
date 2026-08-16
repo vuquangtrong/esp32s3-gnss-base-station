@@ -2,7 +2,9 @@
 
 #include <dirent.h>
 #include <string.h>
+#include <sys/stat.h>
 
+#include "cJSON.h"
 #include "driver/sdmmc_host.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
@@ -211,76 +213,65 @@ esp_err_t sdcard_close(FILE* file)
     }
 }
 
-static void sdcard_list_task(void* arg)
+const char* sdcard_list_ubx_files(void)
 {
-    sdcard_file_callback_ptr callback = (sdcard_file_callback_ptr)arg;
+    static char* s_ubx_files_json_str = NULL;
 
-    if (g_card == NULL)
+    // Free previous result
+    if (s_ubx_files_json_str != NULL)
     {
-        ESP_LOGE(TAG, "SD card not mounted");
-        vTaskDelete(NULL);
-        return;
+        free(s_ubx_files_json_str);
+        s_ubx_files_json_str = NULL;
     }
 
-    DIR* dir = opendir(SDCARD_MOUNT_POINT);
-    if (dir == NULL)
+    cJSON* files_array = cJSON_CreateArray();
+    if (files_array == NULL)
     {
-        ESP_LOGE(TAG, "Failed to open directory: %s", SDCARD_MOUNT_POINT);
-        vTaskDelete(NULL);
-        return;
+        return "{\"files\":[]}";
     }
 
-    struct dirent* entry = NULL;
-    uint32_t count = 0;
-
-    while ((entry = readdir(dir)) != NULL)
+    if (g_card != NULL)
     {
-        // Skip directories - only scan root level files
-        if (entry->d_type == DT_DIR)
+        DIR* dir = opendir(SDCARD_MOUNT_POINT);
+        if (dir != NULL)
         {
-            continue;
-        }
-
-        // Check for .ubx extension (case-insensitive)
-        size_t len = strlen(entry->d_name);
-        if (len > 4)
-        {
-            const char* ext = &entry->d_name[len - 4];
-            if (strcasecmp(ext, ".ubx") == 0)
+            struct dirent* entry = NULL;
+            while ((entry = readdir(dir)) != NULL)
             {
-                if (callback != NULL)
+                if (entry->d_type == DT_DIR)
                 {
-                    callback(entry->d_name);
+                    continue;
                 }
-                count++;
+
+                size_t name_len = strlen(entry->d_name);
+                if (name_len <= 4 || strcasecmp(&entry->d_name[name_len - 4], ".ubx") != 0)
+                {
+                    continue;
+                }
+
+                // Get file size via stat
+                char filepath[128];
+                snprintf(filepath, sizeof(filepath), "%s/%s", SDCARD_MOUNT_POINT, entry->d_name);
+                struct stat st = {0};
+                int64_t file_size = 0;
+                if (stat(filepath, &st) == 0)
+                {
+                    file_size = (int64_t)st.st_size;
+                }
+
+                cJSON* file_obj = cJSON_CreateObject();
+                cJSON_AddStringToObject(file_obj, "name", entry->d_name);
+                cJSON_AddNumberToObject(file_obj, "size", (double)file_size);
+                cJSON_AddItemToArray(files_array, file_obj);
             }
+            closedir(dir);
         }
     }
 
-    closedir(dir);
-    ESP_LOGI(TAG, "Found %lu .ubx files", count);
-    vTaskDelete(NULL);
-}
+    cJSON* response = cJSON_CreateObject();
+    cJSON_AddItemToObject(response, "files", files_array);
+    s_ubx_files_json_str = cJSON_PrintUnformatted(response);
+    cJSON_Delete(response);
 
-esp_err_t sdcard_list_ubx_files(sdcard_file_callback_ptr callback)
-{
-    if (callback == NULL)
-    {
-        ESP_LOGE(TAG, "Invalid parameter: callback is NULL");
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (g_card == NULL)
-    {
-        ESP_LOGE(TAG, "SD card not mounted");
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    if (xTaskCreate(sdcard_list_task, "sdcard_list", 2560, (void*)callback, 1, NULL) != pdPASS)
-    {
-        ESP_LOGE(TAG, "Failed to create SD card list task");
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
+    return (s_ubx_files_json_str != NULL) ? s_ubx_files_json_str : "{\"files\":[]}";
 }

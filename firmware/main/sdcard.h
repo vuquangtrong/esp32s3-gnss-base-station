@@ -29,6 +29,6 @@ FILE* sdcard_open(const char* filename, const char* mode);
 size_t sdcard_write(FILE* file, const void* data, size_t size);
 esp_err_t sdcard_close(FILE* file);
 
-esp_err_t sdcard_list_ubx_files(sdcard_file_callback_ptr callback);
+const char* sdcard_list_ubx_files(void);
 
 #endif  // SDCARD_H

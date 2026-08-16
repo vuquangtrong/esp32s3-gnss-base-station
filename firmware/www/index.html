@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GNSS Station</title>
+    <link rel="stylesheet" href="./pico.min.css" />
+    <script defer src="./alpine.min.js"></script>
+    <style>
+      :root {
+        --pico-spacing: 0.5rem;
+        --pico-nav-element-spacing-vertical: var(--pico-spacing);
+        --pico-nav-element-spacing-horizontal: var(--pico-spacing);
+        --pico-form-element-spacing-vertical: var(--pico-spacing);
+        --pico-form-element-spacing-horizontal: var(--pico-spacing);
+      }
+
+      header {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+      }
+
+      summary {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      summary > :nth-child(2) {
+        margin-left: auto;
+      }
+
+      input,
+      select {
+        font-weight: bold;
+      }
+
+      .text-green {
+        color: green;
+      }
+
+      .text-orange {
+        color: darkorange;
+      }
+
+      .text-red {
+        color: red;
+      }
+
+      .notification {
+        color: red;
+        background-color: lightyellow;
+        border: solid 1px red;
+        padding: var(--pico-spacing);
+        white-space: pre-line;
+      }
+    </style>
+  </head>
+
+  <body x-data="app">
+    <template x-if="message">
+      <div class="container notification" x-text="message"></div>
+    </template>
+
+    <!-- Status Bar -->
+    <header class="container">
+      <nav>
+        <ul>
+          <li>
+            <kbd><span x-text="gnss_mode_text"></span></kbd>
+            <svg
+              x-show="heartbeat"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="8" cy="8" r="8" fill="darkcyan" />
+            </svg>
+          </li>
+        </ul>
+        <ul>
+          <li>
+            <strong :class="gnss_fix_class" x-text="status.gnss_fix"></strong>
+          </li>
+          <li>
+            <span x-text="status.gnss_sat"></span>
+            <img src="/favicon.ico" width="24" height="24" />
+          </li>
+          <li><span x-text="bat_percent_text"></span>%</li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="container">
+      <details name="card_gnss_position" open>
+        <summary role="button" class="outline contrast">
+          <strong>GNSS Position</strong>
+          <span></span>
+        </summary>
+
+        <form>
+          <div
+            class="grid"
+            style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+          >
+            <label for="gnss_time">Time</label>
+            <input id="gnss_time" x-model="gnss_time_text" readonly />
+
+            <label for="gnss_lat">Latitude</label>
+            <input id="gnss_lat" x-model="gnss_lat_text" readonly />
+
+            <label for="gnss_lon">Longitude</label>
+            <input id="gnss_lon" x-model="gnss_lon_text" readonly />
+
+            <label for="gnss_alt">Altitude</label>
+            <div
+              class="grid"
+              style="
+                grid-template-columns: 1fr 1rem 1fr 1fr;
+                gap: 0.5rem;
+                align-items: center;
+              "
+            >
+              <input id="gnss_alt" x-model="gnss_alt_text" readonly />
+              <label for="gnss_hacc">@</label>
+              <input id="gnss_hacc" x-model="gnss_hacc_text" readonly />
+              <input id="gnss_vacc" x-model="gnss_vacc_text" readonly />
+            </div>
+
+            <div></div>
+            <div class="grid">
+              <span></span>
+            </div>
+          </div>
+        </form>
+      </details>
+
+      <!-- WiFi Settings -->
+      <details name="card_wifi">
+        <summary role="button" class="outline contrast">
+          <strong>WiFi</strong>
+          <span :class="wifi_status_class" x-text="wifi_status_text"></span>
+          <span x-text="status.wifi_ip_addr"></span>
+        </summary>
+
+        <form @submit.prevent="wifiConnect()">
+          <div
+            class="grid"
+            style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+          >
+            <label>WiFi AP</label>
+            <input x-model="config.wifi_ssid" autocomplete="on" required />
+
+            <label>Password</label>
+            <input x-model="config.wifi_password" autocomplete="on" required />
+
+            <div></div>
+            <div class="grid">
+              <span></span>
+              <button
+                type="submit"
+                :class="'outline'"
+                :disabled="is_wifi_connecting"
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        </form>
+      </details>
+
+      <!-- SDCard -->
+      <details name="card_sdcard">
+        <summary role="button" class="outline contrast">
+          <strong>SDCard</strong>
+          <span :class="sdcard_status_class" x-text="sdcard_status_text"></span>
+          <span :class="logger_status_class" x-text="logger_status_text"></span>
+        </summary>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+        >
+          <label>Log File</label>
+          <input x-model="logger_file_text" readonly />
+
+          <label>Log Size</label>
+          <input :value="logger_size_text" readonly />
+
+          <div></div>
+          <div class="grid">
+            <span></span>
+            <button
+              @click="loggerToggle()"
+              :class="'outline'"
+              :disabled="!is_sdcard_mounted"
+              x-text="logger_button_text"
+            ></button>
+          </div>
+        </div>
+        <br />
+        <div style="max-height: 12rem; overflow-y: auto">
+          <template x-if="ubx_files.length === 0">
+            <small>No log files found.</small>
+          </template>
+          <template x-if="ubx_files.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th><small>Filename</small></th>
+                  <th><small>Size (MB)</small></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="file in ubx_files" :key="file.name">
+                  <tr>
+                    <td><small x-text="file.name"></small></td>
+                    <td>
+                      <small x-text="(file.size / 1048576).toFixed(2)"></small>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </template>
+        </div>
+      </details>
+    </main>
+
+    <footer class="container">
+      <nav>
+        <ul>
+          <li>
+            <small>
+              V<span x-text="config.version"></span>
+              <span x-text="config.build_time"></span>
+              <span x-text="config.git_commit"></span>
+            </small>
+          </li>
+        </ul>
+        <ul>
+          <li>
+            <small> <span x-text="status.bat_volt"></span>mV </small>
+          </li>
+        </ul>
+      </nav>
+    </footer>
+
+    <script>
+      document.addEventListener("alpine:init", () => {
+        Alpine.data("app", () => ({
+          config: {}, // fields are defined in config.c
+          status: {}, // fields are defined in status.c
+          heartbeat: true,
+          message: "",
+          ubx_files: [],
+
+          // Computed properties
+          get bat_percent_text() {
+            const volt = Number(this.status.bat_volt); // in range 1650-2100 mV
+            return Math.max(
+              0,
+              Math.min(100, Math.round(((volt - 1650) / (2100 - 1650)) * 100)),
+            );
+          },
+
+          get gnss_mode_text() {
+            const modes = ["ROVER", "BASE", "PPP"];
+            return modes[this.status.gnss_mode] ?? "Unknown";
+          },
+
+          get gnss_fix_class() {
+            return this.status.gnss_fix === "FIXED RTK"
+              ? "text-green"
+              : this.status.gnss_fix === "FLOAT RTK"
+                ? "text-orange"
+                : "text-red";
+          },
+
+          get gnss_time_text() {
+            const value = this.status.gnss_time;
+            const match =
+              /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/.exec(value);
+
+            if (!match) {
+              return "---";
+            }
+
+            const [, year, month, day, hour, minute, second] = match;
+            const t = new Date(
+              Date.UTC(
+                Number(year),
+                Number(month) - 1,
+                Number(day),
+                Number(hour),
+                Number(minute),
+                Number(second),
+              ),
+            );
+
+            return isNaN(t.getTime())
+              ? "---"
+              : t.toLocaleString("vi-VN", {
+                  timeZone: "Asia/Ho_Chi_Minh",
+                });
+          },
+
+          get gnss_lat_text() {
+            const lat = Number(this.status.gnss_lat);
+            return isNaN(lat) ? "---" : (lat * 1e-7).toFixed(7);
+          },
+
+          get gnss_lon_text() {
+            const lon = Number(this.status.gnss_lon);
+            return isNaN(lon) ? "---" : (lon * 1e-7).toFixed(7);
+          },
+
+          get gnss_alt_text() {
+            const alt = Number(this.status.gnss_alt);
+            return isNaN(alt) ? "---" : (alt / 1000).toFixed(3);
+          },
+
+          get gnss_hacc_text() {
+            const hacc = Number(this.status.gnss_hacc);
+            return isNaN(hacc) ? "---" : (hacc / 1000).toFixed(3);
+          },
+
+          get gnss_vacc_text() {
+            const vacc = Number(this.status.gnss_vacc);
+            return isNaN(vacc) ? "---" : (vacc / 1000).toFixed(3);
+          },
+
+          get wifi_status_class() {
+            const classes = ["text-red", "text-orange", "text-green"];
+            return classes[this.status.wifi_status] ?? "text-red";
+          },
+
+          get wifi_status_text() {
+            const statuses = ["Disconnected", "Connecting...", "Connected"];
+            return statuses[this.status.wifi_status] ?? "Disconnected";
+          },
+
+          get is_wifi_connecting() {
+            return Number(this.status.wifi_status) === 1;
+          },
+
+          get sdcard_status_class() {
+            const classes = ["text-red", "text-green", "text-red"];
+            return classes[this.status.sdcard_status] ?? "text-red";
+          },
+
+          get sdcard_status_text() {
+            const statuses = ["Removed", "Mounted", "Error"];
+            return statuses[this.status.sdcard_status] ?? "Unknown";
+          },
+
+          get logger_status_class() {
+            const classes = ["text-orange", "text-green", "text-red"];
+            return classes[this.status.logger_status] ?? "text-red";
+          },
+
+          get logger_status_text() {
+            const statuses = ["Stopped", "Logging", "Error"];
+            return statuses[this.status.logger_status] ?? "Unknown";
+          },
+
+          get logger_file_text() {
+            return this.status.logger_file || "Not logging";
+          },
+
+          get logger_size_text() {
+            const bytes = Number(this.status.logger_size);
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + " MB";
+            return (bytes / 1024).toFixed(1) + " KB";
+          },
+
+          get is_sdcard_mounted() {
+            return Number(this.status.sdcard_status) === 1;
+          },
+
+          get logger_button_text() {
+            return Number(this.status.logger_status) === 1
+              ? "Stop Logging"
+              : "Start Logging";
+          },
+
+          // Methods
+
+          setMessage(msg) {
+            this.message = msg;
+            if (msg) window.scrollTo(0, 0);
+          },
+
+          async request(url, options = {}) {
+            const opts = {
+              ...options,
+              signal: AbortSignal.timeout(5000),
+              cache: "no-store",
+            };
+            try {
+              const res = await fetch(url, opts);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.headers
+                .get("content-type")
+                ?.includes("application/json")
+                ? await res.json()
+                : true;
+            } catch (err) {
+              console.error(`Fetch failed (${url}):`, err);
+              return null;
+            }
+          },
+
+          async fetchConfig() {
+            // send get request to /sysinfo with query is config
+            const cfg = await this.request("/sysinfo?type=config");
+            if (cfg) {
+              this.config = cfg;
+            }
+          },
+
+          async fetchStatus() {
+            // send get request to /sysinfo with query is status
+            const stt = await this.request("/sysinfo?type=status");
+            if (stt) {
+              this.status = stt;
+              this.heartbeat = !this.heartbeat;
+              this.setMessage("");
+            } else {
+              this.heartbeat = false;
+              this.setMessage("Unable to connect to device.");
+            }
+          },
+
+          async wifiConnect() {
+            const res = await this.request("/wifi", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                command: "connect",
+                ssid: this.config.wifi_ssid,
+                password: this.config.wifi_password,
+              }),
+            });
+            if (res) {
+              this.setMessage("");
+            } else {
+              this.setMessage("Failed to send WiFi request.");
+            }
+          },
+
+          async loggerToggle() {
+            const running = Number(this.status.logger_status) === 1;
+            if (running) {
+              const res = await this.request("/logger", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ command: "stop" }),
+              });
+              if (res) {
+                await this.fetchFiles();
+              } else {
+                this.setMessage("Failed to stop logger.");
+              }
+            } else {
+              const pre = prompt("Enter filename prefix (optional):", "");
+              const body = { command: "start", prefix: pre ?? "" };
+              const res = await this.request("/logger", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              });
+              if (res) {
+                await this.fetchFiles();
+              } else {
+                this.setMessage("Failed to start logger.");
+              }
+            }
+          },
+
+          async fetchFiles() {
+            const res = await this.request("/logger", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "list" }),
+            });
+            if (res && res.files) {
+              // extract timestamp from filename and sort by timestamp descending
+              this.ubx_files = res.files.sort((a, b) => {
+                const tsA = a.name.match(
+                  /(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/,
+                );
+                const tsB = b.name.match(
+                  /(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/,
+                );
+                if (!tsA || !tsB) return 0;
+                const dateA = new Date(
+                  `${tsA[1]}-${tsA[2]}-${tsA[3]}T${tsA[4]}:${tsA[5]}:${tsA[6]}Z`,
+                );
+                const dateB = new Date(
+                  `${tsB[1]}-${tsB[2]}-${tsB[3]}T${tsB[4]}:${tsB[5]}:${tsB[6]}Z`,
+                );
+                return dateB - dateA;
+              });
+            }
+          },
+
+          async init() {
+            await this.fetchConfig();
+            await this.fetchStatus();
+            await this.fetchFiles();
+            setInterval(() => this.fetchStatus(), 3000);
+          },
+        }));
+      });
+    </script>
+  </body>
+</html>

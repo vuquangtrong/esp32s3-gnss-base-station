@@ -52,9 +52,9 @@ typedef enum
     // SDCard
     STT_SDCARD_STATUS,
     // Logger
-    STT_LOGGER_FILE,
     STT_LOGGER_STATUS,
-    STT_LOGGER_BYTES,
+    STT_LOGGER_FILE,
+    STT_LOGGER_SIZE,
     //
     STT_MAX
 } status_type_t;
