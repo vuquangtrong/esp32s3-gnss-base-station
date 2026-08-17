@@ -223,8 +223,13 @@
 
           <label>Password</label>
           <input x-model="config.ntrip_password" autocomplete="on" required />
-
-          <div></div>
+        </div>
+        <div
+          class="grid"
+          style="grid-template-columns: 1fr 1fr; align-items: baseline"
+        >
+          <!-- Save NTRIP Client to a file -->
+          <button :class="'outline'" @click="ntripClientSave()">Save</button>
           <button
             :class="'outline'"
             :disabled="is_ntrip_client_connecting"
@@ -232,6 +237,60 @@
             x-text="ntrip_button_text"
           ></button>
         </div>
+
+        <hr />
+        <!-- List of saved NTRIP Client settings -->
+        <template x-if="saved_ntrip_clients.length > 0">
+          <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th><small>Server</small></th>
+                  <th><small>Port</small></th>
+                  <th><small>Mountpoint</small></th>
+                  <th><small>User</small></th>
+                  <th><small>Actions</small></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(item, idx) in saved_ntrip_clients" :key="idx">
+                  <tr>
+                    <td><small x-text="item.server"></small></td>
+                    <td><small x-text="item.port"></small></td>
+                    <td><small x-text="item.mountpoint"></small></td>
+                    <td><small x-text="item.username"></small></td>
+                    <td style="white-space: nowrap">
+                      <button
+                        style="
+                          padding: 0.1rem 0.4rem;
+                          font-size: 0.75rem;
+                          margin-right: 0.25rem;
+                          display: inline-block;
+                          width: auto;
+                        "
+                        @click="ntripClientApply(item)"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        class="outline secondary"
+                        style="
+                          padding: 0.1rem 0.4rem;
+                          font-size: 0.75rem;
+                          display: inline-block;
+                          width: auto;
+                        "
+                        @click="ntripClientDelete(idx)"
+                      >
+                        D
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </details>
 
       <!-- Base Settings, show when Base mode -->
@@ -267,10 +326,74 @@
           </div>
 
           <div></div>
-          <button :class="'outline'" @click="setBasePosition()">
-            Get Current Position
+        </div>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 1fr 1fr; align-items: baseline"
+        >
+          <!-- Save Base Point to a file, ask for setting a Name, default name is "New Point" -->
+          <button :class="'outline'" @click="baseSave()">Save</button>
+          <button :class="'outline'" @click="setBaseAtCurrentPosition()">
+            Use Current Position
           </button>
         </div>
+
+        <hr />
+        <!-- List of saved Base Points -->
+        <template x-if="saved_base_points.length > 0">
+          <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th><small>Name</small></th>
+                  <th><small>Lat</small></th>
+                  <th><small>Lon</small></th>
+                  <th><small>Height</small></th>
+                  <th><small>Actions</small></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(pt, idx) in saved_base_points" :key="idx">
+                  <tr>
+                    <td><small x-text="pt.name"></small></td>
+                    <td><small x-text="Number(pt.lat).toFixed(9)"></small></td>
+                    <td><small x-text="Number(pt.lon).toFixed(9)"></small></td>
+                    <td>
+                      <small x-text="Number(pt.height).toFixed(4)"></small>
+                    </td>
+                    <td style="white-space: nowrap">
+                      <button
+                        style="
+                          padding: 0.1rem 0.4rem;
+                          font-size: 0.75rem;
+                          margin-right: 0.25rem;
+                          display: inline-block;
+                          width: auto;
+                        "
+                        @click="baseApply(pt)"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        class="outline secondary"
+                        style="
+                          padding: 0.1rem 0.4rem;
+                          font-size: 0.75rem;
+                          display: inline-block;
+                          width: auto;
+                        "
+                        @click="baseDelete(idx)"
+                      >
+                        D
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </details>
 
       <!-- NTRIP Caster, show when Base mode -->
@@ -393,19 +516,74 @@
 
           <label>Password</label>
           <input x-model="config.wifi_password" autocomplete="on" required />
-
-          <div></div>
-          <div class="grid">
-            <span></span>
-            <button
-              :class="'outline'"
-              :disabled="is_wifi_connecting"
-              @click="wifiConnect()"
-            >
-              Connect
-            </button>
-          </div>
         </div>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 1fr 1fr; align-items: baseline"
+        >
+          <!-- Save WiFi Points to a file -->
+          <button :class="'outline'" @click="wifiSave()">Save</button>
+          <button
+            :class="'outline'"
+            :disabled="is_wifi_connecting"
+            @click="wifiConnect()"
+          >
+            Connect
+          </button>
+        </div>
+
+        <hr />
+        <!-- List of saved WiFi Points -->
+        <template x-if="saved_wifi_list.length > 0">
+          <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th><small>SSID</small></th>
+                  <th><small>Password</small></th>
+                  <th><small>Actions</small></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(w, idx) in saved_wifi_list" :key="idx">
+                  <tr>
+                    <td><small x-text="w.ssid"></small></td>
+                    <td>
+                      <small x-text="w.password"></small>
+                    </td>
+                    <td style="white-space: nowrap">
+                      <button
+                        style="
+                          padding: 0.1rem 0.4rem;
+                          font-size: 0.75rem;
+                          margin-right: 0.25rem;
+                          display: inline-block;
+                          width: auto;
+                        "
+                        @click="wifiApply(w)"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        class="outline secondary"
+                        style="
+                          padding: 0.1rem 0.4rem;
+                          font-size: 0.75rem;
+                          display: inline-block;
+                          width: auto;
+                        "
+                        @click="wifiDelete(idx)"
+                      >
+                        D
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </details>
 
       <!-- SDCard, always show -->
@@ -472,6 +650,9 @@
           displayMode: "rover", // default display mode
           sdcard_files: [],
           ntrip_mountpoints: [],
+          saved_ntrip_clients: [],
+          saved_base_points: [],
+          saved_wifi_list: [],
 
           // Computed properties
 
@@ -666,7 +847,7 @@
             this.displayMode = mode;
           },
 
-          setBasePosition() {
+          setBaseAtCurrentPosition() {
             this.config.base_lat = this.status.gnss_lat * 1e-7;
             this.config.base_lon = this.status.gnss_lon * 1e-7;
             this.config.base_height = this.status.gnss_height / 1000;
@@ -813,7 +994,7 @@
             const res = await this.request("/ntripclient", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ command: "list" }),
+              body: JSON.stringify({ command: "get" }),
             });
             if (res && res.mountpoints) {
               this.ntrip_mountpoints = res.mountpoints;
@@ -870,11 +1051,193 @@
             }
           },
 
+          async fetchNtripClientList() {
+            const res = await this.request("/ntripclient", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "list" }),
+            });
+            if (res && res.ntripclient) {
+              this.saved_ntrip_clients = res.ntripclient;
+            }
+          },
+
+          async ntripClientSave() {
+            if (
+              !this.config.ntrip_server ||
+              !this.config.ntrip_port ||
+              !this.config.ntrip_mountpoint
+            ) {
+              this.setMessage("Please enter Server, Port, and Mountpoint.");
+              return;
+            }
+            const res = await this.request("/ntripclient", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                command: "save",
+                server: this.config.ntrip_server,
+                port: Number(this.config.ntrip_port),
+                mountpoint: this.config.ntrip_mountpoint,
+                username: this.config.ntrip_username ?? "",
+                password: this.config.ntrip_password ?? "",
+              }),
+            });
+            if (res) {
+              this.setMessage("");
+              await this.fetchNtripClientList();
+            } else {
+              this.setMessage("Failed to save NTRIP Client preset.");
+            }
+          },
+
+          ntripClientApply(item) {
+            if (!confirm(`Apply NTRIP Client preset "${item.mountpoint}"?`))
+              return;
+            this.config.ntrip_server = item.server;
+            this.config.ntrip_port = item.port;
+            this.config.ntrip_mountpoint = item.mountpoint;
+            this.config.ntrip_username = item.username ?? "";
+            this.config.ntrip_password = item.password ?? "";
+          },
+
+          async ntripClientDelete(index) {
+            const item = this.saved_ntrip_clients[index];
+            const name = item?.mountpoint
+              ? `"${item.mountpoint}"`
+              : "this preset";
+            if (!confirm(`Delete NTRIP Client preset ${name}?`)) return;
+            const res = await this.request("/ntripclient", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "delete", index: index }),
+            });
+            if (res) {
+              await this.fetchNtripClientList();
+            } else {
+              this.setMessage("Failed to delete NTRIP Client preset.");
+            }
+          },
+
+          async fetchBasePointsList() {
+            const res = await this.request("/gnss", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "list" }),
+            });
+            if (res && res.gnss) {
+              this.saved_base_points = res.gnss;
+            }
+          },
+
+          async baseSave() {
+            const name = prompt("Enter Base Point Name:", "New Point");
+            if (!name) return;
+            const res = await this.request("/gnss", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                command: "save",
+                name: name,
+                lat: Number(this.config.base_lat),
+                lon: Number(this.config.base_lon),
+                height: Number(this.config.base_height),
+              }),
+            });
+            if (res) {
+              this.setMessage("");
+              await this.fetchBasePointsList();
+            } else {
+              this.setMessage("Failed to save Base Point.");
+            }
+          },
+
+          baseApply(pt) {
+            if (!confirm(`Apply Base Point "${pt.name}"?`)) return;
+            this.config.base_lat = pt.lat;
+            this.config.base_lon = pt.lon;
+            this.config.base_height = pt.height;
+          },
+
+          async baseDelete(index) {
+            const pt = this.saved_base_points[index];
+            const name = pt?.name ? `"${pt.name}"` : "this point";
+            if (!confirm(`Delete Base Point ${name}?`)) return;
+            const res = await this.request("/gnss", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "delete", index: index }),
+            });
+            if (res) {
+              await this.fetchBasePointsList();
+            } else {
+              this.setMessage("Failed to delete Base Point.");
+            }
+          },
+
+          async fetchWifiList() {
+            const res = await this.request("/wifi", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "list" }),
+            });
+            if (res && res.wifi) {
+              this.saved_wifi_list = res.wifi;
+            }
+          },
+
+          async wifiSave() {
+            if (!this.config.wifi_ssid) {
+              this.setMessage("Please enter WiFi SSID.");
+              return;
+            }
+            const res = await this.request("/wifi", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                command: "save",
+                ssid: this.config.wifi_ssid,
+                password: this.config.wifi_password ?? "",
+              }),
+            });
+            if (res) {
+              this.setMessage("");
+              await this.fetchWifiList();
+            } else {
+              this.setMessage("Failed to save WiFi AP.");
+            }
+          },
+
+          wifiApply(w) {
+            if (!confirm(`Apply WiFi settings for "${w.ssid}"?`)) return;
+            this.config.wifi_ssid = w.ssid;
+            this.config.wifi_password = w.password ?? "";
+          },
+
+          async wifiDelete(index) {
+            const w = this.saved_wifi_list[index];
+            const name = w?.ssid ? `"${w.ssid}"` : "this network";
+            if (!confirm(`Delete WiFi preset ${name}?`)) return;
+            const res = await this.request("/wifi", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "delete", index: index }),
+            });
+            if (res) {
+              await this.fetchWifiList();
+            } else {
+              this.setMessage("Failed to delete WiFi AP.");
+            }
+          },
+
           async init() {
             await this.fetchConfig();
             await this.fetchStatus();
             setTimeout(() => this.fetchFiles(), 1000);
-            setTimeout(() => this.fetchNtripClientMountpoints(), 2000);
+            setTimeout(() => this.fetchNtripClientMountpoints(), 1500);
+            setTimeout(() => this.fetchNtripClientList(), 2000);
+            setTimeout(() => this.fetchBasePointsList(), 2500);
+            setTimeout(() => this.fetchWifiList(), 3000);
             setInterval(() => this.fetchStatus(), 3000);
           },
         }));

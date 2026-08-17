@@ -1,6 +1,7 @@
 set(srcs
     config.c
     status.c
+    storage.c
     battery.c
     wifi.c
     ublox.c

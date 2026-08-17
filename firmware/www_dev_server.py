@@ -117,12 +117,65 @@ def sysinfo():
         return "Missing or invalid type parameter", 400
 
 
+# Mock saved configurations
+saved_ntrip_clients = [
+    {
+        "server": "vngeonet.vn",
+        "port": 2101,
+        "mountpoint": "VRS.105M6",
+        "username": "user1",
+        "password": "pwd",
+    }
+]
+
+saved_base_points = [
+    {
+        "name": "Station Alpha",
+        "lat": 21.028511234,
+        "lon": 105.804817890,
+        "height": 12.3456,
+    }
+]
+
+saved_wifi_list = [
+    {"ssid": "TrongIP", "password": "asdfghjkl"},
+    {"ssid": "Office_5G", "password": "officepassword"},
+]
+
+
 @app.route("/gnss", methods=["POST"])
 def gnss():
     data = request.get_json(silent=True)
     print(f"POST /gnss body: {data}")
     if data is None:
         return "Invalid JSON", 400
+
+    command = data.get("command")
+    if command == "save":
+        name = data.get("name", "New Point")
+        lat = data.get("lat", 0.0)
+        lon = data.get("lon", 0.0)
+        height = data.get("height", 0.0)
+        # Update if exists
+        updated = False
+        for pt in saved_base_points:
+            if pt.get("name") == name:
+                pt["lat"] = lat
+                pt["lon"] = lon
+                pt["height"] = height
+                updated = True
+                break
+        if not updated:
+            saved_base_points.append({"name": name, "lat": lat, "lon": lon, "height": height})
+        return jsonify({"status": "ok"})
+    elif command == "list":
+        return jsonify({"gnss": saved_base_points})
+    elif command == "delete":
+        idx = data.get("index")
+        if idx is not None and 0 <= idx < len(saved_base_points):
+            saved_base_points.pop(idx)
+            return jsonify({"status": "ok"})
+        return "Invalid index", 400
 
     mode = data.get("mode")
     if mode == "rover":
@@ -175,6 +228,26 @@ def wifi():
         password = data.get("password", "")
         print(f"WiFi connect: ssid={ssid}, password={password}")
         return jsonify({"status": "ok"})
+    elif command == "save":
+        ssid = data.get("ssid", "")
+        password = data.get("password", "")
+        updated = False
+        for w in saved_wifi_list:
+            if w.get("ssid") == ssid:
+                w["password"] = password
+                updated = True
+                break
+        if not updated:
+            saved_wifi_list.append({"ssid": ssid, "password": password})
+        return jsonify({"status": "ok"})
+    elif command == "list":
+        return jsonify({"wifi": saved_wifi_list})
+    elif command == "delete":
+        idx = data.get("index")
+        if idx is not None and 0 <= idx < len(saved_wifi_list):
+            saved_wifi_list.pop(idx)
+            return jsonify({"status": "ok"})
+        return "Invalid index", 400
 
     return "Unknown command", 400
 
@@ -233,7 +306,7 @@ def ntripclient_post():
         return "Invalid JSON", 400
 
     command = data.get("command")
-    if command == "list":
+    if command == "get":
         return jsonify(
             {
                 "mountpoints": [
@@ -265,6 +338,39 @@ def ntripclient_post():
         ntrip_client_state["status"] = 0
         ntrip_client_state["received_bytes"] = 0
         return jsonify({"status": "ok"})
+    elif command == "save":
+        server = data.get("server") or data.get("host", "")
+        port = data.get("port", 2101)
+        mountpoint = data.get("mountpoint", "")
+        username = data.get("username", "")
+        password = data.get("password", "")
+        updated = False
+        for item in saved_ntrip_clients:
+            if item.get("mountpoint") == mountpoint and item.get("server") == server:
+                item["port"] = port
+                item["username"] = username
+                item["password"] = password
+                updated = True
+                break
+        if not updated:
+            saved_ntrip_clients.append(
+                {
+                    "server": server,
+                    "port": port,
+                    "mountpoint": mountpoint,
+                    "username": username,
+                    "password": password,
+                }
+            )
+        return jsonify({"status": "ok"})
+    elif command == "list":
+        return jsonify({"ntripclient": saved_ntrip_clients})
+    elif command == "delete":
+        idx = data.get("index")
+        if idx is not None and 0 <= idx < len(saved_ntrip_clients):
+            saved_ntrip_clients.pop(idx)
+            return jsonify({"status": "ok"})
+        return "Invalid index", 400
 
     return "Unknown command", 400
 

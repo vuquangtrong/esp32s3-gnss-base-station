@@ -17,6 +17,7 @@
 #include "ntrip_server.h"
 #include "sdcard.h"
 #include "status.h"
+#include "storage.h"
 #include "wifi.h"
 
 static const char* TAG = "server";
@@ -307,9 +308,49 @@ static esp_err_t server_get_sysinfo_handler(httpd_req_t* req)
     return ESP_OK;
 }
 
+static void server_send_json_list(httpd_req_t* req, const char* key, const char* filepath)
+{
+    char* file_content = storage_read_json_file(filepath);
+    cJSON* root = cJSON_CreateObject();
+    if (file_content != NULL)
+    {
+        cJSON* arr = cJSON_Parse(file_content);
+        free(file_content);
+        if (arr != NULL && cJSON_IsArray(arr))
+        {
+            cJSON_AddItemToObject(root, key, arr);
+        }
+        else
+        {
+            if (arr != NULL)
+            {
+                cJSON_Delete(arr);
+            }
+            cJSON_AddArrayToObject(root, key);
+        }
+    }
+    else
+    {
+        cJSON_AddArrayToObject(root, key);
+    }
+    char* json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    httpd_resp_set_type(req, "application/json");
+    if (json_str != NULL)
+    {
+        httpd_resp_sendstr(req, json_str);
+        cJSON_free(json_str);
+    }
+    else
+    {
+        httpd_resp_sendstr(req, "{}");
+    }
+}
+
 static esp_err_t server_post_gnss_handler(httpd_req_t* req)
 {
-    char body[256] = {0};
+    char body[1024] = {0};
     int32_t received = httpd_req_recv(req, body, sizeof(body) - 1);
     if (received <= 0)
     {
@@ -325,11 +366,66 @@ static esp_err_t server_post_gnss_handler(httpd_req_t* req)
         return ESP_FAIL;
     }
 
+    cJSON* command = cJSON_GetObjectItem(root, "command");
+    if (command != NULL && cJSON_IsString(command))
+    {
+        if (strcmp(command->valuestring, "save") == 0)
+        {
+            cJSON* name = cJSON_GetObjectItem(root, "name");
+            cJSON* lat = cJSON_GetObjectItem(root, "lat");
+            cJSON* lon = cJSON_GetObjectItem(root, "lon");
+            cJSON* height = cJSON_GetObjectItem(root, "height");
+            if (lat == NULL || !cJSON_IsNumber(lat) || lon == NULL || !cJSON_IsNumber(lon) || height == NULL || !cJSON_IsNumber(height))
+            {
+                cJSON_Delete(root);
+                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing position parameters");
+                return ESP_FAIL;
+            }
+
+            cJSON* item = cJSON_CreateObject();
+            const char* name_str = (name != NULL && cJSON_IsString(name)) ? name->valuestring : "New Point";
+            cJSON_AddStringToObject(item, "name", name_str);
+            cJSON_AddNumberToObject(item, "lat", lat->valuedouble);
+            cJSON_AddNumberToObject(item, "lon", lon->valuedouble);
+            cJSON_AddNumberToObject(item, "height", height->valuedouble);
+
+            storage_save_entry(STORAGE_BASE_FILE, item, "name");
+            cJSON_Delete(item);
+            cJSON_Delete(root);
+
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+            return ESP_OK;
+        }
+        else if (strcmp(command->valuestring, "list") == 0)
+        {
+            cJSON_Delete(root);
+            server_send_json_list(req, "gnss", STORAGE_BASE_FILE);
+            return ESP_OK;
+        }
+        else if (strcmp(command->valuestring, "delete") == 0)
+        {
+            cJSON* index = cJSON_GetObjectItem(root, "index");
+            if (index == NULL || !cJSON_IsNumber(index))
+            {
+                cJSON_Delete(root);
+                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing index");
+                return ESP_FAIL;
+            }
+            storage_delete_entry(STORAGE_BASE_FILE, (int32_t)index->valueint);
+            cJSON_Delete(root);
+
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+            return ESP_OK;
+        }
+    }
+
     cJSON* mode = cJSON_GetObjectItem(root, "mode");
     if (mode == NULL || !cJSON_IsString(mode))
     {
         cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing mode");
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing mode or command");
         return ESP_FAIL;
     }
 
@@ -416,7 +512,7 @@ static esp_err_t server_post_gnss_handler(httpd_req_t* req)
 
 static esp_err_t server_post_wifi_handler(httpd_req_t* req)
 {
-    char body[256] = {0};
+    char body[1024] = {0};
     int32_t received = httpd_req_recv(req, body, sizeof(body) - 1);
     if (received <= 0)
     {
@@ -456,6 +552,52 @@ static esp_err_t server_post_wifi_handler(httpd_req_t* req)
         wifi_sta_connect(ssid->valuestring, password->valuestring);
 
         cJSON_Delete(root);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "save") == 0)
+    {
+        cJSON* ssid = cJSON_GetObjectItem(root, "ssid");
+        cJSON* password = cJSON_GetObjectItem(root, "password");
+        if (ssid == NULL || !cJSON_IsString(ssid) || password == NULL || !cJSON_IsString(password))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing ssid or password");
+            return ESP_FAIL;
+        }
+
+        cJSON* item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "ssid", ssid->valuestring);
+        cJSON_AddStringToObject(item, "password", password->valuestring);
+
+        storage_save_entry(STORAGE_WIFI_FILE, item, "ssid");
+        cJSON_Delete(item);
+        cJSON_Delete(root);
+
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "list") == 0)
+    {
+        cJSON_Delete(root);
+        server_send_json_list(req, "wifi", STORAGE_WIFI_FILE);
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "delete") == 0)
+    {
+        cJSON* index = cJSON_GetObjectItem(root, "index");
+        if (index == NULL || !cJSON_IsNumber(index))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing index");
+            return ESP_FAIL;
+        }
+
+        storage_delete_entry(STORAGE_WIFI_FILE, (int32_t)index->valueint);
+        cJSON_Delete(root);
+
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
         return ESP_OK;
@@ -579,7 +721,7 @@ static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    if (strcmp(command->valuestring, "list") == 0)
+    if (strcmp(command->valuestring, "get") == 0)
     {
         cJSON_Delete(root);
         const char* json = ntrip_client_get_mountpoints();
@@ -669,6 +811,63 @@ static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
         httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
         return ESP_OK;
     }
+    else if (strcmp(command->valuestring, "save") == 0)
+    {
+        cJSON* server = cJSON_GetObjectItem(root, "server");
+        if (server == NULL)
+        {
+            server = cJSON_GetObjectItem(root, "host");
+        }
+        cJSON* port = cJSON_GetObjectItem(root, "port");
+        cJSON* mountpoint = cJSON_GetObjectItem(root, "mountpoint");
+        cJSON* username = cJSON_GetObjectItem(root, "username");
+        cJSON* password = cJSON_GetObjectItem(root, "password");
+
+        if (server == NULL || !cJSON_IsString(server) || port == NULL || !cJSON_IsNumber(port) || mountpoint == NULL || !cJSON_IsString(mountpoint))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing server, port, or mountpoint");
+            return ESP_FAIL;
+        }
+
+        cJSON* item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "server", server->valuestring);
+        cJSON_AddNumberToObject(item, "port", port->valueint);
+        cJSON_AddStringToObject(item, "mountpoint", mountpoint->valuestring);
+        cJSON_AddStringToObject(item, "username", (username != NULL && cJSON_IsString(username)) ? username->valuestring : "");
+        cJSON_AddStringToObject(item, "password", (password != NULL && cJSON_IsString(password)) ? password->valuestring : "");
+
+        storage_save_entry(STORAGE_NTRIP_FILE, item, "mountpoint");
+        cJSON_Delete(item);
+        cJSON_Delete(root);
+
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "list") == 0)
+    {
+        cJSON_Delete(root);
+        server_send_json_list(req, "ntripclient", STORAGE_NTRIP_FILE);
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "delete") == 0)
+    {
+        cJSON* index = cJSON_GetObjectItem(root, "index");
+        if (index == NULL || !cJSON_IsNumber(index))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing index");
+            return ESP_FAIL;
+        }
+
+        storage_delete_entry(STORAGE_NTRIP_FILE, (int32_t)index->valueint);
+        cJSON_Delete(root);
+
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
 
     cJSON_Delete(root);
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Unknown command");
@@ -678,7 +877,7 @@ static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
 esp_err_t server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.stack_size = 8192;
+    config.stack_size = 16384;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESP_LOGI(TAG, "Starting HTTP Server");

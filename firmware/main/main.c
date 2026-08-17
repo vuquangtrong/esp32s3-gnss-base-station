@@ -10,6 +10,7 @@
 #include "sdcard.h"
 #include "server.h"
 #include "status.h"
+#include "storage.h"
 #include "uart.h"
 #include "wifi.h"
 
@@ -57,6 +58,7 @@ void app_main(void)
     printf("\nV" VERSION " " GIT_COMMIT " " BUILD_TIME "\n");
 
     ESP_ERROR_CHECK(config_init());
+    ESP_ERROR_CHECK(storage_init());
     ESP_ERROR_CHECK(battery_init());
     ESP_ERROR_CHECK(wifi_init());
     ESP_ERROR_CHECK(uart_init());
