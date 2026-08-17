@@ -8,33 +8,39 @@
 
 static const char* TAG = "status";
 
-static bool g_status_changed = true;
+static volatile bool g_status_changed = true;
 
 // Runtime status with fixed-size buffers,
 // initialized with defaults
 static status_entry_t g_status[STT_MAX] = {
     // Battery
     [STT_BAT_VOLT] = {.name = "bat_volt", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+
     // WiFi
     [STT_WIFI_STATUS] = {.name = "wifi_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
     [STT_WIFI_IP_ADDR] = {.name = "wifi_ip_addr", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+
     // GNSS Mode
     [STT_GNSS_MODE] = {.name = "gnss_mode", .type = STT_VALUE_INT, .value = {.i_value = GNSS_ROVER}},
+
     // GNSS Position
     [STT_GNSS_TIME] = {.name = "gnss_time", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
     [STT_GNSS_LAT] = {.name = "gnss_lat", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
     [STT_GNSS_LON] = {.name = "gnss_lon", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
-    [STT_GNSS_ALT] = {.name = "gnss_alt", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
+    [STT_GNSS_HEIGHT] = {.name = "gnss_height", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
     [STT_GNSS_SAT] = {.name = "gnss_sat", .type = STT_VALUE_INT, .value = {.i_value = 0}},
     [STT_GNSS_HACC] = {.name = "gnss_hacc", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
     [STT_GNSS_VACC] = {.name = "gnss_vacc", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
     [STT_GNSS_FIX] = {.name = "gnss_fix", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+
     // SDCard
     [STT_SDCARD_STATUS] = {.name = "sdcard_status", .type = STT_VALUE_INT, .value = {.i_value = SDCARD_REMOVED}},
+
     // Logger
     [STT_LOGGER_STATUS] = {.name = "logger_status", .type = STT_VALUE_INT, .value = {.i_value = LOGGER_STOPPED}},
     [STT_LOGGER_FILE] = {.name = "logger_file", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
     [STT_LOGGER_SIZE] = {.name = "logger_size", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+
     // NTRIP Client
     [STT_NTRIP_CLIENT_STATUS] = {.name = "ntrip_client_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
     [STT_NTRIP_RECEIVED_BYTES] = {.name = "ntrip_received_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},

@@ -5,13 +5,13 @@
 
 #include "esp_err.h"
 
-#define NTRIP_HOST_LEN_MAX       (64)
-#define NTRIP_USER_LEN_MAX       (64)
-#define NTRIP_PASS_LEN_MAX       (64)
-#define NTRIP_MOUNTPOINTS_MAX    (64)
-#define NTRIP_MOUNTPOINT_LEN_MAX (32)
-#define NTRIP_BUFFER_SIZE        (2048)
-#define NMEA_BUFFER_SIZE         (128)
+#define NTRIP_HOST_LEN_MAX       64
+#define NTRIP_USER_LEN_MAX       64
+#define NTRIP_PASS_LEN_MAX       64
+#define NTRIP_MOUNTPOINTS_MAX    64
+#define NTRIP_MOUNTPOINT_LEN_MAX 32
+#define NTRIP_BUFFER_SIZE        2048
+#define NMEA_BUFFER_SIZE         128
 
 typedef struct
 {

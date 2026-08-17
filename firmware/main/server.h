@@ -11,10 +11,10 @@
 
 #define WWW_PARTITION_LABEL  "www"
 #define WWW_BASE_PATH        "/www"
-#define FILE_ETAG_LENGTH_MAX (64)
+#define FILE_ETAG_LENGTH_MAX 64
 
 #define SERVER_FILE_PATH_MAX (ESP_VFS_PATH_MAX + 128)
-#define SERVER_BUFFER_SIZE   (2048)
+#define SERVER_BUFFER_SIZE   2048
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 

@@ -95,12 +95,12 @@ static void parser_process_ubx_nav_pvt(const ubx_nav_pvt_t* pvt)
 
     snprintf(str_buf, sizeof(str_buf), "%04u-%02u-%02u_%02u-%02u-%02u", pvt->year, pvt->month, pvt->day, pvt->hour, pvt->min, pvt->sec);
     status_set(STT_GNSS_TIME, str_buf);
-    status_set(STT_GNSS_LAT, (double)pvt->lat);
-    status_set(STT_GNSS_LON, (double)pvt->lon);
-    status_set(STT_GNSS_ALT, (double)pvt->hMSL);
+    status_set(STT_GNSS_LAT, (double)pvt->lat);        // deg at 1e-7 scale
+    status_set(STT_GNSS_LON, (double)pvt->lon);        // deg at 1e-7 scale
+    status_set(STT_GNSS_HEIGHT, (double)pvt->height);  // mm
     status_set(STT_GNSS_SAT, (int)pvt->numSV);
-    status_set(STT_GNSS_HACC, (double)pvt->hAcc);
-    status_set(STT_GNSS_VACC, (double)pvt->vAcc);
+    status_set(STT_GNSS_HACC, (double)pvt->hAcc);  // mm
+    status_set(STT_GNSS_VACC, (double)pvt->vAcc);  // mm
 
     const char* fix_str = "NO FIX";
     uint8_t carr_soln = (pvt->flags >> 6) & 0x03;

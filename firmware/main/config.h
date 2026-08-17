@@ -3,7 +3,7 @@
 
 #include "esp_err.h"
 
-#define CFG_VALUE_LENGTH_MAX (64)
+#define CFG_VALUE_LENGTH_MAX 64
 
 typedef enum
 {
@@ -11,15 +11,27 @@ typedef enum
     CFG_VERSION,
     CFG_BUILD_TIME,
     CFG_GIT_COMMIT,
+
     // WiFi
     CFG_WIFI_SSID,
     CFG_WIFI_PASSWORD,
+
     // NTRIP Client
     CFG_NTRIP_SERVER,
     CFG_NTRIP_PORT,
     CFG_NTRIP_MOUNTPOINT,
     CFG_NTRIP_USERNAME,
     CFG_NTRIP_PASSWORD,
+
+    // Base Position
+    CFG_BASE_LAT,     // deg, 9 decimal places
+    CFG_BASE_LON,     // deg, 9 decimal places
+    CFG_BASE_HEIGHT,  // m, 4 decimal places
+
+    // PPP Parameters
+    CFG_PPP_MIN_DUR,    // seconds
+    CFG_PPP_ACC_LIMIT,  // mm
+
     //
     CFG_MAX
 } config_type_t;

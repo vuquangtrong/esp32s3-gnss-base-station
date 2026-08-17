@@ -1,7 +1,7 @@
 #ifndef STATUS_H
 #define STATUS_H
 
-#define STT_VALUE_LENGTH_MAX (64)
+#define STT_VALUE_LENGTH_MAX 64
 
 typedef enum
 {
@@ -35,29 +35,36 @@ typedef enum
 {
     // Battery
     STT_BAT_VOLT,
+
     // WiFi
     STT_WIFI_STATUS,
     STT_WIFI_IP_ADDR,
+
     // GNSS Mode
     STT_GNSS_MODE,
+
     // GNSS Position
     STT_GNSS_TIME,
-    STT_GNSS_LAT,
-    STT_GNSS_LON,
-    STT_GNSS_ALT,
+    STT_GNSS_LAT,     // deg, 7 decimal places
+    STT_GNSS_LON,     // deg, 9 decimal places
+    STT_GNSS_HEIGHT,  // mm
     STT_GNSS_SAT,
     STT_GNSS_HACC,
     STT_GNSS_VACC,
     STT_GNSS_FIX,
+
     // SDCard
     STT_SDCARD_STATUS,
+
     // Logger
     STT_LOGGER_STATUS,
     STT_LOGGER_FILE,
     STT_LOGGER_SIZE,
+
     // NTRIP Client
     STT_NTRIP_CLIENT_STATUS,
     STT_NTRIP_RECEIVED_BYTES,
+
     //
     STT_MAX
 } status_type_t;

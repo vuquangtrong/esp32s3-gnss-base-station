@@ -10,9 +10,9 @@
 
 #define SDCARD_MOUNT_POINT          "/sdcard"
 #define SDCARD_FREQ_KHZ             SDMMC_FREQ_HIGHSPEED
-#define SDCARD_MAX_FILES            (64)
+#define SDCARD_MAX_FILES            64
 #define SDCARD_ALLOCATION_UNIT_SIZE (64 * 1024)  // 64KB
-#define SDCARD_BUS_WIDTH            (4)
+#define SDCARD_BUS_WIDTH            4
 #define SDCARD_PIN_CMD              GPIO_NUM_15
 #define SDCARD_PIN_CLK              GPIO_NUM_7
 #define SDCARD_PIN_D0               GPIO_NUM_6

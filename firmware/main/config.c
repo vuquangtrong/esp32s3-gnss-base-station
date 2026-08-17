@@ -12,24 +12,31 @@ static const char* TAG = "config";
 static const char* NVS_NAMESPACE = "gnss_config";
 
 static nvs_handle_t g_nvs_handle = 0;
-static bool g_config_changed = true;
+static volatile bool g_config_changed = true;
 
 // Runtime configuration storage with fixed-size buffers,
 // initialized with defaults
 static config_entry_t g_configs[CFG_MAX] = {
     // Project
-    [CFG_VERSION] = {"version", VERSION},           //
-    [CFG_BUILD_TIME] = {"build_time", BUILD_TIME},  //
-    [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},  //
+    [CFG_VERSION] = {"version", VERSION},
+    [CFG_BUILD_TIME] = {"build_time", BUILD_TIME},
+    [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},
     // WiFi
-    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},            //
-    [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},  //
+    [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},
+    [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},
     // NTRIP Client
-    [CFG_NTRIP_SERVER] = {"ntrip_server", "vngeonet.vn"},        //
-    [CFG_NTRIP_PORT] = {"ntrip_port", "2101"},                   //
-    [CFG_NTRIP_MOUNTPOINT] = {"ntrip_mountpoint", "VRS.105M6"},  //
-    [CFG_NTRIP_USERNAME] = {"ntrip_username", ""},               //
-    [CFG_NTRIP_PASSWORD] = {"ntrip_password", ""},               //
+    [CFG_NTRIP_SERVER] = {"ntrip_server", "vngeonet.vn"},
+    [CFG_NTRIP_PORT] = {"ntrip_port", "2101"},
+    [CFG_NTRIP_MOUNTPOINT] = {"ntrip_mountpoint", "VRS.105M6"},
+    [CFG_NTRIP_USERNAME] = {"ntrip_username", ""},
+    [CFG_NTRIP_PASSWORD] = {"ntrip_password", ""},
+    // Base Position
+    [CFG_BASE_LAT] = {"base_lat", "21.028511234"},   // deg, 9 decimal places
+    [CFG_BASE_LON] = {"base_lon", "105.804817890"},  // deg, 9 decimal places
+    [CFG_BASE_HEIGHT] = {"base_height", "12.3456"},  // m, 4 decimal places
+    // PPP Parameters
+    [CFG_PPP_MIN_DUR] = {"ppp_min_dur", "600"},      // seconds
+    [CFG_PPP_ACC_LIMIT] = {"ppp_acc_limit", "100"},  // mm
 };
 
 esp_err_t config_init(void)

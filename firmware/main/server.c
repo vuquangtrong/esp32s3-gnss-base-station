@@ -9,6 +9,7 @@
 #include "esp_littlefs.h"
 #include "esp_log.h"
 #include "esp_vfs.h"
+#include "gnss.h"
 #include "logger.h"
 #include "lwip/apps/netbiosns.h"
 #include "mdns.h"
@@ -81,12 +82,10 @@ static esp_err_t www_fs_init(void)
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
-        esp_littlefs_format(conf.partition_label);
+        return ESP_FAIL;
     }
-    else
-    {
-        ESP_LOGI(TAG, "Partition size: total: %zu, used: %zu", total, used);
-    }
+
+    ESP_LOGI(TAG, "Partition size: total: %zu, used: %zu", total, used);
     return ESP_OK;
 }
 
@@ -301,8 +300,113 @@ static esp_err_t server_get_sysinfo_handler(httpd_req_t* req)
         return ESP_FAIL;
     }
 
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, json);
+    return ESP_OK;
+}
+
+static esp_err_t server_post_gnss_handler(httpd_req_t* req)
+{
+    char body[256] = {0};
+    int32_t received = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (received <= 0)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_FAIL;
+    }
+    body[received] = '\0';
+
+    cJSON* root = cJSON_Parse(body);
+    if (root == NULL)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON* mode = cJSON_GetObjectItem(root, "mode");
+    if (mode == NULL || !cJSON_IsString(mode))
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing mode");
+        return ESP_FAIL;
+    }
+
+    const char* mode_name = mode->valuestring;
+
+    if (strcmp(mode_name, "rover") == 0)
+    {
+        cJSON_Delete(root);
+
+        logger_stop();
+        ntrip_client_disconnect_stream();
+        gnss_set_mode_rover();
+    }
+    else if (strcmp(mode_name, "base") == 0)
+    {
+        cJSON* lat = cJSON_GetObjectItem(root, "lat");
+        cJSON* lon = cJSON_GetObjectItem(root, "lon");
+        cJSON* height = cJSON_GetObjectItem(root, "height");
+        if (lat == NULL || !cJSON_IsNumber(lat) || lon == NULL || !cJSON_IsNumber(lon) || height == NULL || !cJSON_IsNumber(height))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing base position parameters");
+            return ESP_FAIL;
+        }
+
+        double lat_val = lat->valuedouble;        // deg, 9 decimal places
+        double lon_val = lon->valuedouble;        // deg, 9 decimal places
+        double height_val = height->valuedouble;  // m, 4 decimal places
+        cJSON_Delete(root);
+
+        char value[CFG_VALUE_LENGTH_MAX] = {0};
+        snprintf(value, sizeof(value), "%.9f", lat_val);
+        config_set(CFG_BASE_LAT, value);
+        snprintf(value, sizeof(value), "%.9f", lon_val);
+        config_set(CFG_BASE_LON, value);
+        snprintf(value, sizeof(value), "%.4f", height_val);
+        config_set(CFG_BASE_HEIGHT, value);
+
+        logger_stop();
+        ntrip_client_disconnect_stream();
+        gnss_base_set_fixed(lat_val, lon_val, height_val);
+        gnss_set_mode_base();
+    }
+    else if (strcmp(mode_name, "ppp") == 0)
+    {
+        cJSON* min_dur = cJSON_GetObjectItem(root, "min_dur");
+        cJSON* acc_limit = cJSON_GetObjectItem(root, "acc_limit");
+        if (min_dur == NULL || !cJSON_IsNumber(min_dur) || acc_limit == NULL || !cJSON_IsNumber(acc_limit))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing PPP parameters");
+            return ESP_FAIL;
+        }
+
+        int min_dur_val = (int)min_dur->valuedouble;      // seconds
+        int acc_limit_val = (int)acc_limit->valuedouble;  // mm
+        cJSON_Delete(root);
+
+        char value[CFG_VALUE_LENGTH_MAX] = {0};
+        snprintf(value, sizeof(value), "%d", min_dur_val);
+        config_set(CFG_PPP_MIN_DUR, value);
+        snprintf(value, sizeof(value), "%d", (int)acc_limit_val);
+        config_set(CFG_PPP_ACC_LIMIT, value);
+
+        logger_stop();
+        ntrip_client_disconnect_stream();
+        gnss_base_set_survey_in(min_dur_val, acc_limit_val * 10 /* at 0.1 scale */);
+        gnss_set_mode_ppp();
+    }
+    else
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Unknown GNSS mode");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
     return ESP_OK;
 }
 
@@ -523,8 +627,7 @@ static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
         cJSON* username = cJSON_GetObjectItem(root, "username");
         cJSON* password = cJSON_GetObjectItem(root, "password");
 
-        if (host == NULL || !cJSON_IsString(host) || port == NULL || !cJSON_IsNumber(port) || mountpoint == NULL ||
-            !cJSON_IsString(mountpoint))
+        if (host == NULL || !cJSON_IsString(host) || port == NULL || !cJSON_IsNumber(port) || mountpoint == NULL || !cJSON_IsString(mountpoint))
         {
             cJSON_Delete(root);
             httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing host, port, or mountpoint");
@@ -547,8 +650,7 @@ static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
 
         const char* user_str = (username != NULL && cJSON_IsString(username)) ? username->valuestring : "";
         const char* pass_str = (password != NULL && cJSON_IsString(password)) ? password->valuestring : "";
-        ntrip_client_connect_stream(host->valuestring, (uint16_t)port->valueint, mountpoint->valuestring, user_str,
-                                    pass_str);
+        ntrip_client_connect_stream(host->valuestring, (uint16_t)port->valueint, mountpoint->valuestring, user_str, pass_str);
 
         cJSON_Delete(root);
         httpd_resp_set_type(req, "application/json");
@@ -609,6 +711,14 @@ esp_err_t server_start(void)
         .user_ctx = NULL,
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(g_httpd_server_handler, &ntripclient_post_uri));
+
+    httpd_uri_t gnss_post_uri = {
+        .uri = "/gnss",
+        .method = HTTP_POST,
+        .handler = server_post_gnss_handler,
+        .user_ctx = NULL,
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(g_httpd_server_handler, &gnss_post_uri));
 
     httpd_uri_t common_get_uri = {
         .uri = "/*",  //

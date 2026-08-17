@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GNSS Station</title>
-    <link rel="stylesheet" href="./pico.min.css" />
-    <script defer src="./alpine.min.js"></script>
+    <link rel="stylesheet" href="pico.min.css" />
+    <script defer src="alpine.min.js"></script>
     <style>
       :root {
+        --pico-font-size: 100% !important;
         --pico-spacing: 0.5rem;
         --pico-nav-element-spacing-vertical: var(--pico-spacing);
         --pico-nav-element-spacing-horizontal: var(--pico-spacing);
@@ -85,7 +86,7 @@
           </li>
           <li>
             <span x-text="status.gnss_sat"></span>
-            <img src="/favicon.ico" width="24" height="24" />
+            <img src="favicon.ico" width="24" height="24" />
           </li>
           <li><span x-text="bat_percent_text"></span>%</li>
         </ul>
@@ -93,6 +94,7 @@
     </header>
 
     <main class="container">
+      <!-- GNSS Position, always show -->
       <details name="card_gnss_position" open>
         <summary role="button" class="outline contrast">
           <strong>GNSS Position</strong>
@@ -101,73 +103,75 @@
 
         <div
           class="grid"
-          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
         >
-          <label for="gnss_time">Time</label>
-          <input id="gnss_time" x-model="gnss_time_text" readonly />
+          <label>Latitude</label>
+          <input x-model="gnss_lat_text" readonly />
 
-          <label for="gnss_lat">Latitude</label>
-          <input id="gnss_lat" x-model="gnss_lat_text" readonly />
+          <label>Longitude</label>
+          <input x-model="gnss_lon_text" readonly />
 
-          <label for="gnss_lon">Longitude</label>
-          <input id="gnss_lon" x-model="gnss_lon_text" readonly />
-
-          <label for="gnss_alt">Altitude</label>
+          <label>Height</label>
           <div
             class="grid"
             style="
-              grid-template-columns: 1fr 1rem 1fr 1fr;
-              gap: 0.5rem;
-              align-items: center;
+              grid-template-columns: 2fr 0.5rem 1rem 2rem 1fr 2rem 1fr;
+              gap: 0;
+              align-items: baseline;
             "
           >
-            <input id="gnss_alt" x-model="gnss_alt_text" readonly />
-            <label for="gnss_hacc">@</label>
-            <input id="gnss_hacc" x-model="gnss_hacc_text" readonly />
-            <input id="gnss_vacc" x-model="gnss_vacc_text" readonly />
+            <input x-model="gnss_height_text" readonly />
+            <span></span>
+            <span>m</span>
+            <span style="margin-left: auto">ΔH</span>
+            <span x-text="gnss_hacc_text" style="margin-left: auto"></span>
+            <span style="margin-left: auto">ΔV</span>
+            <span x-text="gnss_vacc_text" style="margin-left: auto"></span>
           </div>
 
-          <div></div>
-          <div class="grid">
-            <span></span>
-          </div>
+          <label>Time</label>
+          <input x-model="gnss_time_text" readonly style="border: none" />
         </div>
       </details>
 
-      <!-- WiFi Settings -->
-      <details name="card_wifi">
-        <summary role="button" class="outline contrast">
-          <strong>WiFi</strong>
-          <span :class="wifi_status_class" x-text="wifi_status_text"></span>
-          <span x-text="status.wifi_ip_addr"></span>
-        </summary>
-
-        <div
-          class="grid"
-          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+      <!-- Display Mode Buttons, always show -->
+      <div role="group">
+        <button
+          @click="setDisplayMode('rover')"
+          :class="displayMode === 'rover' ?  'secondary' : 'outline'"
         >
-          <label>WiFi AP</label>
-          <input x-model="config.wifi_ssid" autocomplete="on" required />
+          Rover
+        </button>
+        <button
+          @click="setDisplayMode('base')"
+          :class="displayMode === 'base' ?  'secondary' : 'outline'"
+        >
+          Base
+        </button>
+        <button
+          @click="setDisplayMode('ppp')"
+          :class="displayMode === 'ppp' ?  'secondary' : 'outline'"
+        >
+          PPP
+        </button>
+      </div>
 
-          <label>Password</label>
-          <input x-model="config.wifi_password" autocomplete="on" required />
-
-          <div></div>
-          <div class="grid">
-            <span></span>
-            <button
-              :class="'outline'"
-              :disabled="is_wifi_connecting"
-              @click="wifiConnect()"
-            >
-              Connect
-            </button>
-          </div>
-        </div>
+      <!-- Rover Settings, show when Rover mode -->
+      <details name="card_rover_settings" open x-show="displayMode === 'rover'">
+        <summary role="button" class="outline contrast">
+          <strong>Rover Settings</strong>
+          <button
+            :class="'outline'"
+            :disabled="status.gnss_mode === 0"
+            @click="setGnssMode('rover')"
+          >
+            Activate Rover Mode
+          </button>
+        </summary>
       </details>
 
-      <!-- NTRIP Client -->
-      <details name="card_ntrip_client" open>
+      <!-- NTRIP Client, show in Rover mode -->
+      <details name="card_ntrip_client" x-show="displayMode === 'rover'">
         <summary role="button" class="outline contrast">
           <strong>NTRIP Client</strong>
           <span
@@ -230,11 +234,86 @@
         </div>
       </details>
 
-      <!-- SDCard -->
-      <details name="card_sdcard">
+      <!-- Base Settings, show when Base mode -->
+      <details name="card_base_settings" open x-show="displayMode === 'base'">
         <summary role="button" class="outline contrast">
-          <strong>SDCard</strong>
-          <span :class="sdcard_status_class" x-text="sdcard_status_text"></span>
+          <strong>Base Settings</strong>
+          <button
+            :class="'outline'"
+            :disabled="status.gnss_mode === 1"
+            @click="setGnssMode('base')"
+          >
+            Activate Base Mode
+          </button>
+        </summary>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
+        >
+          <label>Latitude</label>
+          <input x-model="config.base_lat" />
+
+          <label>Longitude</label>
+          <input x-model="config.base_lon" />
+
+          <label>Height</label>
+          <div
+            class="grid"
+            style="grid-template-columns: 1fr 1rem; align-items: baseline"
+          >
+            <input x-model="config.base_height" />
+            <span>m</span>
+          </div>
+
+          <div></div>
+          <button :class="'outline'" @click="setBasePosition()">
+            Get Current Position
+          </button>
+        </div>
+      </details>
+
+      <!-- PPP Settings, show when PPP mode -->
+      <details name="card_ppp_settings" open x-show="displayMode === 'ppp'">
+        <summary role="button" class="outline contrast">
+          <strong>PPP Settings</strong>
+          <button
+            :class="'outline'"
+            :disabled="status.gnss_mode === 2"
+            @click="setGnssMode('ppp')"
+          >
+            Activate PPP Mode
+          </button>
+        </summary>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
+        >
+          <label>Duration</label>
+          <div
+            class="grid"
+            style="grid-template-columns: 1fr 4rem; align-items: baseline"
+          >
+            <input x-model="config.ppp_min_dur" />
+            <span>seconds</span>
+          </div>
+
+          <label>Accuracy</label>
+          <div
+            class="grid"
+            style="grid-template-columns: 1fr 4rem; align-items: baseline"
+          >
+            <input x-model="config.ppp_acc_limit" />
+            <span>mm</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Logger, show when PPP mode -->
+      <details name="card_logger" x-show="displayMode === 'ppp'">
+        <summary role="button" class="outline contrast">
+          <strong>Logger</strong>
           <span :class="logger_status_class" x-text="logger_status_text"></span>
         </summary>
 
@@ -259,12 +338,52 @@
             ></button>
           </div>
         </div>
-        <br />
+      </details>
+
+      <!-- WiFi Settings, always show -->
+      <details name="card_wifi">
+        <summary role="button" class="outline contrast">
+          <strong>WiFi</strong>
+          <span :class="wifi_status_class" x-text="wifi_status_text"></span>
+          <span x-text="status.wifi_ip_addr"></span>
+        </summary>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+        >
+          <label>WiFi AP</label>
+          <input x-model="config.wifi_ssid" autocomplete="on" required />
+
+          <label>Password</label>
+          <input x-model="config.wifi_password" autocomplete="on" required />
+
+          <div></div>
+          <div class="grid">
+            <span></span>
+            <button
+              :class="'outline'"
+              :disabled="is_wifi_connecting"
+              @click="wifiConnect()"
+            >
+              Connect
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <!-- SDCard, always show -->
+      <details name="card_sdcard">
+        <summary role="button" class="outline contrast">
+          <strong>SDCard</strong>
+          <span :class="sdcard_status_class" x-text="sdcard_status_text"></span>
+        </summary>
+
         <div style="max-height: 12rem; overflow-y: auto">
-          <template x-if="ubx_files.length === 0">
+          <template x-if="sdcard_files.length === 0">
             <small>No log files found.</small>
           </template>
-          <template x-if="ubx_files.length > 0">
+          <template x-if="sdcard_files.length > 0">
             <table>
               <thead>
                 <tr>
@@ -273,7 +392,7 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="file in ubx_files" :key="file.name">
+                <template x-for="file in sdcard_files" :key="file.name">
                   <tr>
                     <td><small x-text="file.name"></small></td>
                     <td>
@@ -313,11 +432,13 @@
           config: {}, // fields are defined in config.c
           status: {}, // fields are defined in status.c
           heartbeat: true,
-          message: "",
-          ubx_files: [],
+          message: "Connecting to device...",
+          displayMode: "rover", // default display mode
+          sdcard_files: [],
           ntrip_mountpoints: [],
 
           // Computed properties
+
           get bat_percent_text() {
             const volt = Number(this.status.bat_volt); // in range 1650-2100 mV
             return Math.max(
@@ -369,27 +490,33 @@
 
           get gnss_lat_text() {
             const lat = Number(this.status.gnss_lat);
-            return isNaN(lat) ? "---" : (lat * 1e-7).toFixed(7);
+            return isNaN(lat) ? "---" : (lat * 1e-7).toFixed(9);
           },
 
           get gnss_lon_text() {
             const lon = Number(this.status.gnss_lon);
-            return isNaN(lon) ? "---" : (lon * 1e-7).toFixed(7);
+            return isNaN(lon) ? "---" : (lon * 1e-7).toFixed(9);
           },
 
-          get gnss_alt_text() {
-            const alt = Number(this.status.gnss_alt);
-            return isNaN(alt) ? "---" : (alt / 1000).toFixed(3);
+          get gnss_height_text() {
+            const height = Number(this.status.gnss_height);
+            if (isNaN(height)) return "---";
+            if (height >= 999999) return "---";
+            return (height / 1000).toFixed(4);
           },
 
           get gnss_hacc_text() {
             const hacc = Number(this.status.gnss_hacc);
-            return isNaN(hacc) ? "---" : (hacc / 1000).toFixed(3);
+            if (isNaN(hacc)) return "---";
+            if (hacc >= 9999) return "---";
+            return (hacc / 1000).toFixed(3);
           },
 
           get gnss_vacc_text() {
             const vacc = Number(this.status.gnss_vacc);
-            return isNaN(vacc) ? "---" : (vacc / 1000).toFixed(3);
+            if (isNaN(vacc)) return "---";
+            if (vacc >= 9999) return "---";
+            return (vacc / 1000).toFixed(3);
           },
 
           get wifi_status_class() {
@@ -482,6 +609,16 @@
             if (msg) window.scrollTo(0, 0);
           },
 
+          setDisplayMode(mode) {
+            this.displayMode = mode;
+          },
+
+          setBasePosition() {
+            this.config.base_lat = this.status.gnss_lat * 1e-7;
+            this.config.base_lon = this.status.gnss_lon * 1e-7;
+            this.config.base_height = this.status.gnss_height / 1000;
+          },
+
           async request(url, options = {}) {
             const opts = {
               ...options,
@@ -520,6 +657,29 @@
             } else {
               this.heartbeat = false;
               this.setMessage("Unable to connect to device.");
+            }
+          },
+
+          async setGnssMode(req_mode) {
+            const payload = { mode: req_mode };
+            if (req_mode === "base") {
+              payload.lat = Number(this.config.base_lat);
+              payload.lon = Number(this.config.base_lon);
+              payload.height = Number(this.config.base_height);
+            }
+            if (req_mode === "ppp") {
+              payload.min_dur = Number(this.config.ppp_min_dur);
+              payload.acc_limit = Number(this.config.ppp_acc_limit);
+            }
+            const res = await this.request("/gnss", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (res) {
+              this.setMessage("");
+            } else {
+              this.setMessage("Failed to set GNSS mode.");
             }
           },
 
@@ -577,7 +737,7 @@
             });
             if (res && res.files) {
               // extract timestamp from filename and sort by timestamp descending
-              this.ubx_files = res.files.sort((a, b) => {
+              this.sdcard_files = res.files.sort((a, b) => {
                 const tsA = a.name.match(
                   /(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/,
                 );

@@ -14,12 +14,6 @@
 #include "freertos/task.h"
 #include "status.h"
 
-#define WIFI_AP_SSID_PREFIX     "GNSS_"
-#define WIFI_AP_PASSWORD        "12345678"
-#define WIFI_STA_RETRY_MAX      10
-#define WIFI_DISCONNECTED_BIT   BIT0
-#define WIFI_DISCONNECT_TIMEOUT 10000
-
 static const char* TAG = "wifi";
 static const char* TAG_AP = "wifi.ap";
 static const char* TAG_STA = "wifi.sta";

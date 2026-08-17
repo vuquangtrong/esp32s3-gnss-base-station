@@ -12,6 +12,11 @@ WWW_DIR = Path(__file__).parent / "www"
 HOST = "127.0.0.1"
 PORT = 5000
 
+# Simulated GNSS state
+gnss_state = {
+    "mode": 0,  # 0=rover, 1=base, 2=ppp
+}
+
 # Simulated logger state
 logger_state = {
     "status": 0,  # 0=stopped, 1=running, 2=error
@@ -45,10 +50,16 @@ def sysinfo():
                 "ntrip_mountpoint": "VRS.105M6",
                 "ntrip_username": "",
                 "ntrip_password": "",
+                # Base Position
+                "base_lat": "21.028511234",
+                "base_lon": "105.804817890",
+                "base_height": "12.3456",
+                # PPP Parameters
+                "ppp_min_dur": "600",
+                "ppp_acc_limit": "100",
             }
         )
     elif info_type == "status":
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         # Simulate growing file size when logger is running
         if logger_state["status"] == 1:
             logger_state["size"] += random.randint(10000, 50000)
@@ -60,23 +71,23 @@ def sysinfo():
                 # Battery
                 "bat_volt": random.randint(1650, 2100),
                 # WiFi
-                "wifi_status": 2,
+                "wifi_status": random.randint(0, 2),
                 "wifi_ip_addr": "192.168.1.100",
                 # GNSS Mode
-                "gnss_mode": 0,
+                "gnss_mode": gnss_state["mode"],
                 # GNSS Position
-                "gnss_time": now,
-                "gnss_lat": 210285110 + random.randint(-1000, 1000),
-                "gnss_lon": 1058048170 + random.randint(-1000, 1000),
-                "gnss_alt": 12340 + random.randint(-100, 100),
+                "gnss_time": datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S"),
+                "gnss_lat": 210285112 + random.randint(-1000, 1000),
+                "gnss_lon": 1058048178 + random.randint(-1000, 1000),
+                "gnss_height": 912345 + random.randint(-100, 100),
                 "gnss_sat": random.randint(8, 24),
-                "gnss_hacc": random.randint(0, 10000),
-                "gnss_vacc": random.randint(0, 10000),
+                "gnss_hacc": random.randint(0, 1000),
+                "gnss_vacc": random.randint(0, 1000),
                 "gnss_fix": random.choice(
-                    ["NO_FIX", "3D_FIX", "FLOAT RTK", "FIXED RTK"]
+                    ["NO_FIX", "2D_FIX", "3D_FIX", "FLOAT RTK", "FIXED RTK"]
                 ),
                 # SDCard
-                "sdcard_status": 1,
+                "sdcard_status": random.randint(0, 2),
                 # Logger
                 "logger_status": logger_state["status"],
                 "logger_file": logger_state["file"],
@@ -88,6 +99,40 @@ def sysinfo():
         )
     else:
         return "Missing or invalid type parameter", 400
+
+
+@app.route("/gnss", methods=["POST"])
+def gnss():
+    data = request.get_json(silent=True)
+    print(f"POST /gnss body: {data}")
+    if data is None:
+        return "Invalid JSON", 400
+
+    mode = data.get("mode")
+    if mode == "rover":
+        gnss_state["mode"] = 0
+    elif mode == "base":
+        gnss_state["mode"] = 1
+    elif mode == "ppp":
+        gnss_state["mode"] = 2
+    else:
+        return "Unknown mode", 400
+
+    if mode == "base":
+        lat = data.get("lat")
+        lon = data.get("lon")
+        height = data.get("height")
+        if lat is None or lon is None or height is None:
+            return "Missing base position parameters", 400
+        print(f"GNSS base config: lat={lat}, lon={lon}, height={height}")
+    elif mode == "ppp":
+        min_dur = data.get("min_dur")
+        acc_limit = data.get("acc_limit")
+        if min_dur is None or acc_limit is None:
+            return "Missing PPP parameters", 400
+        print(f"GNSS PPP config: duration={min_dur}, accuracy={acc_limit}")
+
+    return jsonify({"status": "ok"})
 
 
 @app.route("/wifi", methods=["POST"])
