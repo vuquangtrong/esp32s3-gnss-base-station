@@ -14,6 +14,7 @@
 #include "lwip/apps/netbiosns.h"
 #include "mdns.h"
 #include "ntrip_client.h"
+#include "ntrip_server.h"
 #include "sdcard.h"
 #include "status.h"
 #include "wifi.h"
@@ -339,6 +340,7 @@ static esp_err_t server_post_gnss_handler(httpd_req_t* req)
         cJSON_Delete(root);
 
         logger_stop();
+        ntrip_server_stop();
         ntrip_client_disconnect_stream();
         gnss_set_mode_rover();
     }
@@ -371,6 +373,7 @@ static esp_err_t server_post_gnss_handler(httpd_req_t* req)
         ntrip_client_disconnect_stream();
         gnss_base_set_fixed(lat_val, lon_val, height_val);
         gnss_set_mode_base();
+        ntrip_server_start();
     }
     else if (strcmp(mode_name, "ppp") == 0)
     {
@@ -394,6 +397,7 @@ static esp_err_t server_post_gnss_handler(httpd_req_t* req)
         config_set(CFG_PPP_ACC_LIMIT, value);
 
         logger_stop();
+        ntrip_server_stop();
         ntrip_client_disconnect_stream();
         gnss_base_set_survey_in(min_dur_val, acc_limit_val * 10 /* at 0.1 scale */);
         gnss_set_mode_ppp();

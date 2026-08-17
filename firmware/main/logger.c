@@ -186,6 +186,12 @@ esp_err_t logger_start(const char* filename)
         return ESP_ERR_INVALID_STATE;
     }
 
+    if (status_get_int(STT_GNSS_MODE) == GNSS_BASE)
+    {
+        ESP_LOGW(TAG, "Cannot start logger in Base mode (UART2 used by NTRIP caster)");
+        return ESP_ERR_INVALID_STATE;
+    }
+
     // Allocate DMA-capable write buffer for fast SD card writes
     g_write_buffer = heap_caps_malloc(LOGGER_WRITE_BUFFER_SIZE, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (g_write_buffer == NULL)

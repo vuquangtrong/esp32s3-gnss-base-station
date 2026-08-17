@@ -44,6 +44,11 @@ static status_entry_t g_status[STT_MAX] = {
     // NTRIP Client
     [STT_NTRIP_CLIENT_STATUS] = {.name = "ntrip_client_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
     [STT_NTRIP_RECEIVED_BYTES] = {.name = "ntrip_received_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+
+    // NTRIP Server
+    [STT_NTRIP_SERVER_STATUS] = {.name = "ntrip_server_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
+    [STT_NTRIP_SERVER_CLIENT_NUM] = {.name = "ntrip_server_client_num", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    [STT_NTRIP_SENT_BYTES] = {.name = "ntrip_sent_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
 };
 
 const char* status_name(status_type_t key)

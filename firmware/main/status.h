@@ -65,6 +65,11 @@ typedef enum
     STT_NTRIP_CLIENT_STATUS,
     STT_NTRIP_RECEIVED_BYTES,
 
+    // NTRIP Server
+    STT_NTRIP_SERVER_STATUS,
+    STT_NTRIP_SERVER_CLIENT_NUM,
+    STT_NTRIP_SENT_BYTES,
+
     //
     STT_MAX
 } status_type_t;

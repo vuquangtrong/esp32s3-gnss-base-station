@@ -273,6 +273,42 @@
         </div>
       </details>
 
+      <!-- NTRIP Caster, show when Base mode -->
+      <details name="card_ntrip_server" open x-show="displayMode === 'base'">
+        <summary role="button" class="outline contrast">
+          <strong>NTRIP Caster</strong>
+          <span x-text="status.ntrip_server_client_num"> </span>
+          <span
+            :class="ntrip_server_status_class"
+            x-text="ntrip_server_status_text"
+          ></span>
+          <span
+            :class="ntrip_server_status_class"
+            x-text="ntrip_server_sent_bytes_text"
+          ></span>
+        </summary>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+        >
+          <label>Host</label>
+          <input :value="(status.wifi_ip_addr || '192.168.4.1')" readonly />
+
+          <label>Port</label>
+          <input value="2101" readonly />
+
+          <label>Mountpoint</label>
+          <input value="BASE" readonly />
+
+          <label>Username</label>
+          <input value="BASE" readonly />
+
+          <label>Password</label>
+          <input value="BASE" readonly />
+        </div>
+      </details>
+
       <!-- PPP Settings, show when PPP mode -->
       <details name="card_ppp_settings" open x-show="displayMode === 'ppp'">
         <summary role="button" class="outline contrast">
@@ -333,7 +369,7 @@
             <button
               @click="loggerToggleLogging()"
               :class="'outline'"
-              :disabled="!is_sdcard_mounted"
+              :disabled="!is_sdcard_mounted || Number(status.gnss_mode) !== 2"
               x-text="logger_button_text"
             ></button>
           </div>
@@ -432,7 +468,7 @@
           config: {}, // fields are defined in config.c
           status: {}, // fields are defined in status.c
           heartbeat: true,
-          message: "Connecting to device...",
+          message: "Connecting to device",
           displayMode: "rover", // default display mode
           sdcard_files: [],
           ntrip_mountpoints: [],
@@ -525,7 +561,7 @@
           },
 
           get wifi_status_text() {
-            const statuses = ["Disconnected", "Connecting...", "Connected"];
+            const statuses = ["Disconnected", "Connecting", "Connected"];
             return statuses[this.status.wifi_status] ?? "Disconnected";
           },
 
@@ -539,7 +575,7 @@
           },
 
           get ntrip_client_status_text() {
-            const statuses = ["Disconnected", "Connecting...", "Connected"];
+            const statuses = ["Disconnected", "Connecting", "Connected"];
             return statuses[this.status.ntrip_client_status] ?? "Disconnected";
           },
 
@@ -560,6 +596,23 @@
 
           get ntrip_button_text() {
             return this.is_ntrip_connected ? "Disconnect" : "Connect";
+          },
+
+          get ntrip_server_status_class() {
+            const classes = ["text-red", "text-orange", "text-green"];
+            return classes[this.status.ntrip_server_status] ?? "text-red";
+          },
+
+          get ntrip_server_status_text() {
+            const statuses = ["Stopped", "Listening", "Streaming"];
+            return statuses[this.status.ntrip_server_status] ?? "Stopped";
+          },
+
+          get ntrip_server_sent_bytes_text() {
+            const bytes = Number(this.status.ntrip_sent_bytes);
+            if (isNaN(bytes)) return "";
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + " MB";
+            return (bytes / 1024).toFixed(1) + " KB";
           },
 
           get sdcard_status_class() {

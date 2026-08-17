@@ -30,6 +30,12 @@ ntrip_client_state = {
     "received_bytes": 0,
 }
 
+# Simulated NTRIP server state
+ntrip_server_state = {
+    "status": 0,  # 0=stopped, 1=listening, 2=streaming
+    "sent_bytes": 0,
+}
+
 
 @app.route("/sysinfo")
 def sysinfo():
@@ -66,6 +72,12 @@ def sysinfo():
         # Simulate growing received bytes when ntrip client is connected
         if ntrip_client_state["status"] == 2:
             ntrip_client_state["received_bytes"] += random.randint(500, 5000)
+        # Simulate growing sent bytes when ntrip server is active in base mode
+        if gnss_state["mode"] == 1:
+            ntrip_server_state["status"] = 2
+            ntrip_server_state["sent_bytes"] += random.randint(500, 3000)
+        else:
+            ntrip_server_state["status"] = 0
         return jsonify(
             {
                 # Battery
@@ -95,6 +107,10 @@ def sysinfo():
                 # NTRIP Client
                 "ntrip_client_status": ntrip_client_state["status"],
                 "ntrip_received_bytes": ntrip_client_state["received_bytes"],
+                # NTRIP Server
+                "ntrip_server_status": ntrip_server_state["status"],
+                "ntrip_server_client_num": 1 if ntrip_server_state["status"] == 2 else 0,
+                "ntrip_sent_bytes": ntrip_server_state["sent_bytes"],
             }
         )
     else:
@@ -111,10 +127,21 @@ def gnss():
     mode = data.get("mode")
     if mode == "rover":
         gnss_state["mode"] = 0
+        logger_state["status"] = 0
+        ntrip_server_state["status"] = 0
+        ntrip_server_state["sent_bytes"] = 0
+        ntrip_client_state["status"] = 0
     elif mode == "base":
         gnss_state["mode"] = 1
+        logger_state["status"] = 0
+        ntrip_server_state["status"] = 2
+        ntrip_server_state["sent_bytes"] = 0
+        ntrip_client_state["status"] = 0
     elif mode == "ppp":
         gnss_state["mode"] = 2
+        ntrip_server_state["status"] = 0
+        ntrip_server_state["sent_bytes"] = 0
+        ntrip_client_state["status"] = 0
     else:
         return "Unknown mode", 400
 

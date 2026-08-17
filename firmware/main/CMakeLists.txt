@@ -11,6 +11,7 @@ set(srcs
     logger.c
     server.c
     ntrip_client.c
+    ntrip_server.c
     main.c
 )
 
