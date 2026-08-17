@@ -16,7 +16,7 @@ static status_entry_t g_status[STT_MAX] = {
     // Battery
     [STT_BAT_VOLT] = {.name = "bat_volt", .type = STT_VALUE_INT, .value = {.i_value = 0}},
     // WiFi
-    [STT_WIFI_STATUS] = {.name = "wifi_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECT}},
+    [STT_WIFI_STATUS] = {.name = "wifi_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
     [STT_WIFI_IP_ADDR] = {.name = "wifi_ip_addr", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
     // GNSS Mode
     [STT_GNSS_MODE] = {.name = "gnss_mode", .type = STT_VALUE_INT, .value = {.i_value = GNSS_ROVER}},
@@ -35,6 +35,9 @@ static status_entry_t g_status[STT_MAX] = {
     [STT_LOGGER_STATUS] = {.name = "logger_status", .type = STT_VALUE_INT, .value = {.i_value = LOGGER_STOPPED}},
     [STT_LOGGER_FILE] = {.name = "logger_file", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
     [STT_LOGGER_SIZE] = {.name = "logger_size", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    // NTRIP Client
+    [STT_NTRIP_CLIENT_STATUS] = {.name = "ntrip_client_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
+    [STT_NTRIP_RECEIVED_BYTES] = {.name = "ntrip_received_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
 };
 
 const char* status_name(status_type_t key)

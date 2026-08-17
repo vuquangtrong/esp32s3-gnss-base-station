@@ -19,6 +19,12 @@ logger_state = {
     "size": 0,
 }
 
+# Simulated NTRIP client state
+ntrip_client_state = {
+    "status": 0,  # 0=disconnected, 1=connecting, 2=connected
+    "received_bytes": 0,
+}
+
 
 @app.route("/sysinfo")
 def sysinfo():
@@ -26,11 +32,19 @@ def sysinfo():
     if info_type == "config":
         return jsonify(
             {
+                # Project
                 "version": "0.1",
                 "build_time": "2026-08-16 12:00:00",
                 "git_commit": "abc1234",
-                "wifi_ssid": "HomeSweetHome",
-                "wifi_password": "Kh0ngch0d@u",
+                # WiFi
+                "wifi_ssid": "TrongIP",
+                "wifi_password": "asdfghjkl",
+                # NTRIP Client
+                "ntrip_server": "vngeonet.vn",
+                "ntrip_port": "2101",
+                "ntrip_mountpoint": "VRS.105M6",
+                "ntrip_username": "",
+                "ntrip_password": "",
             }
         )
     elif info_type == "status":
@@ -38,12 +52,19 @@ def sysinfo():
         # Simulate growing file size when logger is running
         if logger_state["status"] == 1:
             logger_state["size"] += random.randint(10000, 50000)
+        # Simulate growing received bytes when ntrip client is connected
+        if ntrip_client_state["status"] == 2:
+            ntrip_client_state["received_bytes"] += random.randint(500, 5000)
         return jsonify(
             {
+                # Battery
                 "bat_volt": random.randint(1650, 2100),
+                # WiFi
                 "wifi_status": 2,
                 "wifi_ip_addr": "192.168.1.100",
+                # GNSS Mode
                 "gnss_mode": 0,
+                # GNSS Position
                 "gnss_time": now,
                 "gnss_lat": 210285110 + random.randint(-1000, 1000),
                 "gnss_lon": 1058048170 + random.randint(-1000, 1000),
@@ -54,10 +75,15 @@ def sysinfo():
                 "gnss_fix": random.choice(
                     ["NO_FIX", "3D_FIX", "FLOAT RTK", "FIXED RTK"]
                 ),
+                # SDCard
                 "sdcard_status": 1,
+                # Logger
                 "logger_status": logger_state["status"],
                 "logger_file": logger_state["file"],
                 "logger_size": logger_state["size"],
+                # NTRIP Client
+                "ntrip_client_status": ntrip_client_state["status"],
+                "ntrip_received_bytes": ntrip_client_state["received_bytes"],
             }
         )
     else:
@@ -123,6 +149,50 @@ def logger():
                     {"name": logger_state["file"], "size": logger_state["size"]})
         files.sort(key=lambda f: f["name"])
         return jsonify({"files": files})
+
+    return "Unknown command", 400
+
+
+@app.route("/ntripclient", methods=["POST"])
+def ntripclient_post():
+    data = request.get_json(silent=True)
+    print(f"POST /ntripclient body: {data}")
+    if data is None:
+        return "Invalid JSON", 400
+
+    command = data.get("command")
+    if command == "list":
+        return jsonify(
+            {
+                "mountpoints": [
+                    "VRS.105M6",
+                    "VRS.105M7",
+                    "VRS.105M8",
+                ]
+            }
+        )
+    elif command == "query":
+        host = data.get("host", "")
+        port = data.get("port", 0)
+        print(f"NTRIP query mountpoints: host={host}, port={port}")
+        return jsonify({"status": "ok"})
+    elif command == "connect":
+        host = data.get("host", "")
+        port = data.get("port", 0)
+        mountpoint = data.get("mountpoint", "")
+        username = data.get("username", "")
+        print(
+            f"NTRIP connect: host={host}, port={port}, "
+            f"mountpoint={mountpoint}, username={username}"
+        )
+        ntrip_client_state["status"] = 2
+        ntrip_client_state["received_bytes"] = 0
+        return jsonify({"status": "ok"})
+    elif command == "disconnect":
+        print("NTRIP disconnect")
+        ntrip_client_state["status"] = 0
+        ntrip_client_state["received_bytes"] = 0
+        return jsonify({"status": "ok"})
 
     return "Unknown command", 400
 

@@ -99,41 +99,39 @@
           <span></span>
         </summary>
 
-        <form>
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+        >
+          <label for="gnss_time">Time</label>
+          <input id="gnss_time" x-model="gnss_time_text" readonly />
+
+          <label for="gnss_lat">Latitude</label>
+          <input id="gnss_lat" x-model="gnss_lat_text" readonly />
+
+          <label for="gnss_lon">Longitude</label>
+          <input id="gnss_lon" x-model="gnss_lon_text" readonly />
+
+          <label for="gnss_alt">Altitude</label>
           <div
             class="grid"
-            style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+            style="
+              grid-template-columns: 1fr 1rem 1fr 1fr;
+              gap: 0.5rem;
+              align-items: center;
+            "
           >
-            <label for="gnss_time">Time</label>
-            <input id="gnss_time" x-model="gnss_time_text" readonly />
-
-            <label for="gnss_lat">Latitude</label>
-            <input id="gnss_lat" x-model="gnss_lat_text" readonly />
-
-            <label for="gnss_lon">Longitude</label>
-            <input id="gnss_lon" x-model="gnss_lon_text" readonly />
-
-            <label for="gnss_alt">Altitude</label>
-            <div
-              class="grid"
-              style="
-                grid-template-columns: 1fr 1rem 1fr 1fr;
-                gap: 0.5rem;
-                align-items: center;
-              "
-            >
-              <input id="gnss_alt" x-model="gnss_alt_text" readonly />
-              <label for="gnss_hacc">@</label>
-              <input id="gnss_hacc" x-model="gnss_hacc_text" readonly />
-              <input id="gnss_vacc" x-model="gnss_vacc_text" readonly />
-            </div>
-
-            <div></div>
-            <div class="grid">
-              <span></span>
-            </div>
+            <input id="gnss_alt" x-model="gnss_alt_text" readonly />
+            <label for="gnss_hacc">@</label>
+            <input id="gnss_hacc" x-model="gnss_hacc_text" readonly />
+            <input id="gnss_vacc" x-model="gnss_vacc_text" readonly />
           </div>
-        </form>
+
+          <div></div>
+          <div class="grid">
+            <span></span>
+          </div>
+        </div>
       </details>
 
       <!-- WiFi Settings -->
@@ -144,30 +142,92 @@
           <span x-text="status.wifi_ip_addr"></span>
         </summary>
 
-        <form @submit.prevent="wifiConnect()">
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+        >
+          <label>WiFi AP</label>
+          <input x-model="config.wifi_ssid" autocomplete="on" required />
+
+          <label>Password</label>
+          <input x-model="config.wifi_password" autocomplete="on" required />
+
+          <div></div>
+          <div class="grid">
+            <span></span>
+            <button
+              :class="'outline'"
+              :disabled="is_wifi_connecting"
+              @click="wifiConnect()"
+            >
+              Connect
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <!-- NTRIP Client -->
+      <details name="card_ntrip_client" open>
+        <summary role="button" class="outline contrast">
+          <strong>NTRIP Client</strong>
+          <span
+            :class="ntrip_status_class"
+            x-text="ntrip_client_status_text"
+          ></span>
+          <span
+            :class="ntrip_status_class"
+            x-text="ntrip_received_bytes_text"
+          ></span>
+        </summary>
+
+        <div
+          class="grid"
+          style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+        >
+          <label>Server</label>
+          <input x-model="config.ntrip_server" autocomplete="on" required />
+
+          <label>Port</label>
           <div
             class="grid"
-            style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
+            style="grid-template-columns: 2fr 1fr; align-items: baseline"
           >
-            <label>WiFi AP</label>
-            <input x-model="config.wifi_ssid" autocomplete="on" required />
-
-            <label>Password</label>
-            <input x-model="config.wifi_password" autocomplete="on" required />
-
-            <div></div>
-            <div class="grid">
-              <span></span>
-              <button
-                type="submit"
-                :class="'outline'"
-                :disabled="is_wifi_connecting"
-              >
-                Connect
-              </button>
-            </div>
+            <input x-model="config.ntrip_port" autocomplete="on" required />
           </div>
-        </form>
+
+          <label>Mountpoint</label>
+          <div
+            class="grid"
+            style="grid-template-columns: 2fr 1fr; align-items: baseline"
+          >
+            <select x-model="config.ntrip_mountpoint">
+              <option
+                :value="config.ntrip_mountpoint"
+                x-text="config.ntrip_mountpoint"
+              ></option>
+              <template x-for="mp in ntrip_mountpoints" :key="mp">
+                <option :value="mp" x-text="mp"></option>
+              </template>
+            </select>
+            <button :class="'outline'" @click="ntripClientQueryMountpoints()">
+              Query
+            </button>
+          </div>
+
+          <label>Username</label>
+          <input x-model="config.ntrip_username" autocomplete="on" required />
+
+          <label>Password</label>
+          <input x-model="config.ntrip_password" autocomplete="on" required />
+
+          <div></div>
+          <button
+            :class="'outline'"
+            :disabled="is_ntrip_client_connecting"
+            @click="ntripClientToggleConnection()"
+            x-text="ntrip_button_text"
+          ></button>
+        </div>
       </details>
 
       <!-- SDCard -->
@@ -192,7 +252,7 @@
           <div class="grid">
             <span></span>
             <button
-              @click="loggerToggle()"
+              @click="loggerToggleLogging()"
               :class="'outline'"
               :disabled="!is_sdcard_mounted"
               x-text="logger_button_text"
@@ -255,6 +315,7 @@
           heartbeat: true,
           message: "",
           ubx_files: [],
+          ntrip_mountpoints: [],
 
           // Computed properties
           get bat_percent_text() {
@@ -343,6 +404,35 @@
 
           get is_wifi_connecting() {
             return Number(this.status.wifi_status) === 1;
+          },
+
+          get ntrip_status_class() {
+            const classes = ["text-red", "text-orange", "text-green"];
+            return classes[this.status.ntrip_client_status] ?? "text-red";
+          },
+
+          get ntrip_client_status_text() {
+            const statuses = ["Disconnected", "Connecting...", "Connected"];
+            return statuses[this.status.ntrip_client_status] ?? "Disconnected";
+          },
+
+          get ntrip_received_bytes_text() {
+            const bytes = Number(this.status.ntrip_received_bytes);
+            if (isNaN(bytes)) return "";
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + " MB";
+            return (bytes / 1024).toFixed(1) + " KB";
+          },
+
+          get is_ntrip_client_connecting() {
+            return Number(this.status.ntrip_client_status) === 1;
+          },
+
+          get is_ntrip_connected() {
+            return Number(this.status.ntrip_client_status) === 2;
+          },
+
+          get ntrip_button_text() {
+            return this.is_ntrip_connected ? "Disconnect" : "Connect";
           },
 
           get sdcard_status_class() {
@@ -450,7 +540,7 @@
             }
           },
 
-          async loggerToggle() {
+          async loggerToggleLogging() {
             const running = Number(this.status.logger_status) === 1;
             if (running) {
               const res = await this.request("/logger", {
@@ -506,10 +596,72 @@
             }
           },
 
+          async fetchNtripClientMountpoints() {
+            const res = await this.request("/ntripclient", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "list" }),
+            });
+            if (res && res.mountpoints) {
+              this.ntrip_mountpoints = res.mountpoints;
+            }
+          },
+
+          async ntripClientQueryMountpoints() {
+            const res = await this.request("/ntripclient", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                command: "query",
+                host: this.config.ntrip_server,
+                port: Number(this.config.ntrip_port),
+                username: this.config.ntrip_username,
+                password: this.config.ntrip_password,
+              }),
+            });
+            if (!res) {
+              this.setMessage("Failed to query mountpoints.");
+              return;
+            }
+            // Wait for async query to complete, then fetch mountpoints
+            await new Promise((r) => setTimeout(r, 5000));
+            await this.fetchNtripClientMountpoints();
+          },
+
+          async ntripClientToggleConnection() {
+            if (this.is_ntrip_connected) {
+              const res = await this.request("/ntripclient", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ command: "disconnect" }),
+              });
+              if (!res) {
+                this.setMessage("Failed to disconnect NTRIP.");
+              }
+            } else {
+              const res = await this.request("/ntripclient", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  command: "connect",
+                  host: this.config.ntrip_server,
+                  port: Number(this.config.ntrip_port),
+                  mountpoint: this.config.ntrip_mountpoint,
+                  username: this.config.ntrip_username,
+                  password: this.config.ntrip_password,
+                }),
+              });
+              if (!res) {
+                this.setMessage("Failed to connect NTRIP.");
+              }
+            }
+          },
+
           async init() {
             await this.fetchConfig();
             await this.fetchStatus();
-            await this.fetchFiles();
+            setTimeout(() => this.fetchFiles(), 1000);
+            setTimeout(() => this.fetchNtripClientMountpoints(), 2000);
             setInterval(() => this.fetchStatus(), 3000);
           },
         }));

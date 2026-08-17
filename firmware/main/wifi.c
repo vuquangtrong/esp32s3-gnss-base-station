@@ -77,7 +77,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         else
         {
             ESP_LOGW(TAG_STA, "Failed to connect to the AP after %d attempts", WIFI_STA_RETRY_MAX);
-            status_set(STT_WIFI_STATUS, CONN_DISCONNECT);
+            status_set(STT_WIFI_STATUS, CONN_DISCONNECTED);
             status_set(STT_WIFI_IP_ADDR, "");
         }
     }

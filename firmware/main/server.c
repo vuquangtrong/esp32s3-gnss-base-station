@@ -12,6 +12,7 @@
 #include "logger.h"
 #include "lwip/apps/netbiosns.h"
 #include "mdns.h"
+#include "ntrip_client.h"
 #include "sdcard.h"
 #include "status.h"
 #include "wifi.h"
@@ -444,6 +445,130 @@ static esp_err_t server_post_logger_handler(httpd_req_t* req)
     return ESP_FAIL;
 }
 
+static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
+{
+    char body[512] = {0};
+    int32_t received = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (received <= 0)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_FAIL;
+    }
+    body[received] = '\0';
+
+    cJSON* root = cJSON_Parse(body);
+    if (root == NULL)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON* command = cJSON_GetObjectItem(root, "command");
+    if (command == NULL || !cJSON_IsString(command))
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command");
+        return ESP_FAIL;
+    }
+
+    if (strcmp(command->valuestring, "list") == 0)
+    {
+        cJSON_Delete(root);
+        const char* json = ntrip_client_get_mountpoints();
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, json);
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "query") == 0)
+    {
+        cJSON* host = cJSON_GetObjectItem(root, "host");
+        cJSON* port = cJSON_GetObjectItem(root, "port");
+        cJSON* username = cJSON_GetObjectItem(root, "username");
+        cJSON* password = cJSON_GetObjectItem(root, "password");
+
+        if (host == NULL || !cJSON_IsString(host) || port == NULL || !cJSON_IsNumber(port))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing host or port");
+            return ESP_FAIL;
+        }
+
+        config_set(CFG_NTRIP_SERVER, host->valuestring);
+        char port_str[8] = {0};
+        snprintf(port_str, sizeof(port_str), "%d", port->valueint);
+        config_set(CFG_NTRIP_PORT, port_str);
+        if (username != NULL && cJSON_IsString(username))
+        {
+            config_set(CFG_NTRIP_USERNAME, username->valuestring);
+        }
+        if (password != NULL && cJSON_IsString(password))
+        {
+            config_set(CFG_NTRIP_PASSWORD, password->valuestring);
+        }
+
+        const char* user_str = (username != NULL && cJSON_IsString(username)) ? username->valuestring : "";
+        const char* pass_str = (password != NULL && cJSON_IsString(password)) ? password->valuestring : "";
+        ntrip_client_query_mountpoints(host->valuestring, (uint16_t)port->valueint, user_str, pass_str);
+
+        cJSON_Delete(root);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "connect") == 0)
+    {
+        cJSON* host = cJSON_GetObjectItem(root, "host");
+        cJSON* port = cJSON_GetObjectItem(root, "port");
+        cJSON* mountpoint = cJSON_GetObjectItem(root, "mountpoint");
+        cJSON* username = cJSON_GetObjectItem(root, "username");
+        cJSON* password = cJSON_GetObjectItem(root, "password");
+
+        if (host == NULL || !cJSON_IsString(host) || port == NULL || !cJSON_IsNumber(port) || mountpoint == NULL ||
+            !cJSON_IsString(mountpoint))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing host, port, or mountpoint");
+            return ESP_FAIL;
+        }
+
+        config_set(CFG_NTRIP_SERVER, host->valuestring);
+        char port_str[8] = {0};
+        snprintf(port_str, sizeof(port_str), "%d", port->valueint);
+        config_set(CFG_NTRIP_PORT, port_str);
+        config_set(CFG_NTRIP_MOUNTPOINT, mountpoint->valuestring);
+        if (username != NULL && cJSON_IsString(username))
+        {
+            config_set(CFG_NTRIP_USERNAME, username->valuestring);
+        }
+        if (password != NULL && cJSON_IsString(password))
+        {
+            config_set(CFG_NTRIP_PASSWORD, password->valuestring);
+        }
+
+        const char* user_str = (username != NULL && cJSON_IsString(username)) ? username->valuestring : "";
+        const char* pass_str = (password != NULL && cJSON_IsString(password)) ? password->valuestring : "";
+        ntrip_client_connect_stream(host->valuestring, (uint16_t)port->valueint, mountpoint->valuestring, user_str,
+                                    pass_str);
+
+        cJSON_Delete(root);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "disconnect") == 0)
+    {
+        cJSON_Delete(root);
+        ntrip_client_disconnect_stream();
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+
+    cJSON_Delete(root);
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Unknown command");
+    return ESP_FAIL;
+}
+
 esp_err_t server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -476,6 +601,14 @@ esp_err_t server_start(void)
         .user_ctx = NULL,
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(g_httpd_server_handler, &logger_post_uri));
+
+    httpd_uri_t ntripclient_post_uri = {
+        .uri = "/ntripclient",
+        .method = HTTP_POST,
+        .handler = server_post_ntripclient_handler,
+        .user_ctx = NULL,
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(g_httpd_server_handler, &ntripclient_post_uri));
 
     httpd_uri_t common_get_uri = {
         .uri = "/*",  //

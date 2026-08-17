@@ -12,7 +12,7 @@ typedef enum
 
 typedef enum
 {
-    CONN_DISCONNECT,
+    CONN_DISCONNECTED,
     CONN_CONNECTING,
     CONN_CONNECTED
 } connection_status_t;
@@ -55,6 +55,9 @@ typedef enum
     STT_LOGGER_STATUS,
     STT_LOGGER_FILE,
     STT_LOGGER_SIZE,
+    // NTRIP Client
+    STT_NTRIP_CLIENT_STATUS,
+    STT_NTRIP_RECEIVED_BYTES,
     //
     STT_MAX
 } status_type_t;

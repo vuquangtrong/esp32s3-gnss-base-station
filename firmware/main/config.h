@@ -14,6 +14,12 @@ typedef enum
     // WiFi
     CFG_WIFI_SSID,
     CFG_WIFI_PASSWORD,
+    // NTRIP Client
+    CFG_NTRIP_SERVER,
+    CFG_NTRIP_PORT,
+    CFG_NTRIP_MOUNTPOINT,
+    CFG_NTRIP_USERNAME,
+    CFG_NTRIP_PASSWORD,
     //
     CFG_MAX
 } config_type_t;

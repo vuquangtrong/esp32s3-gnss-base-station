@@ -10,6 +10,7 @@ set(srcs
     sdcard.c
     logger.c
     server.c
+    ntrip_client.c
     main.c
 )
 
@@ -23,6 +24,7 @@ idf_component_register(SRCS ${srcs}
         esp_driver_gpio
         esp_driver_uart
         esp_http_server
+        esp_http_client
     WHOLE_ARCHIVE
 )
 
