@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,6 +13,10 @@
         --pico-nav-element-spacing-vertical: var(--pico-spacing);
         --pico-nav-element-spacing-horizontal: var(--pico-spacing);
         --pico-form-element-spacing-vertical: var(--pico-spacing);
+        --pico-form-element-spacing-horizontal: var(--pico-spacing);
+      }
+
+      [role="group"] button {
         --pico-form-element-spacing-horizontal: var(--pico-spacing);
       }
 
@@ -97,7 +101,7 @@
       <!-- GNSS Position, always show -->
       <details name="card_gnss_position" open>
         <summary role="button" class="outline contrast">
-          <strong>GNSS Position</strong>
+          <strong x-text="t('gnss_position')">Tọa độ GNSS</strong>
           <span></span>
         </summary>
 
@@ -105,13 +109,13 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
         >
-          <label>Latitude</label>
+          <label x-text="t('latitude')">Vĩ độ</label>
           <input x-model="gnss_lat_text" readonly />
 
-          <label>Longitude</label>
+          <label x-text="t('longitude')">Kinh độ</label>
           <input x-model="gnss_lon_text" readonly />
 
-          <label>Height</label>
+          <label x-text="t('height')">Độ cao</label>
           <div
             class="grid"
             style="
@@ -129,7 +133,7 @@
             <span x-text="gnss_vacc_text" style="margin-left: auto"></span>
           </div>
 
-          <label>Time</label>
+          <label x-text="t('time')">Thời gian</label>
           <input x-model="gnss_time_text" readonly style="border: none" />
         </div>
       </details>
@@ -139,18 +143,21 @@
         <button
           @click="setDisplayMode('rover')"
           :class="displayMode === 'rover' ?  'secondary' : 'outline'"
+          x-text="t('rover')"
         >
           Rover
         </button>
         <button
           @click="setDisplayMode('base')"
           :class="displayMode === 'base' ?  'secondary' : 'outline'"
+          x-text="t('base')"
         >
           Base
         </button>
         <button
           @click="setDisplayMode('ppp')"
           :class="displayMode === 'ppp' ?  'secondary' : 'outline'"
+          x-text="t('ppp')"
         >
           PPP
         </button>
@@ -159,13 +166,14 @@
       <!-- Rover Settings, show when Rover mode -->
       <details name="card_rover_settings" open x-show="displayMode === 'rover'">
         <summary role="button" class="outline contrast">
-          <strong>Rover Settings</strong>
+          <strong x-text="t('rover_settings')">Cài đặt Rover</strong>
           <button
             :class="'outline'"
             :disabled="status.gnss_mode === 0"
             @click="setGnssMode('rover')"
+            x-text="t('activate_rover_mode')"
           >
-            Activate Rover Mode
+            Kích hoạt chế độ Rover
           </button>
         </summary>
       </details>
@@ -173,7 +181,7 @@
       <!-- NTRIP Client, show in Rover mode -->
       <details name="card_ntrip_client" x-show="displayMode === 'rover'">
         <summary role="button" class="outline contrast">
-          <strong>NTRIP Client</strong>
+          <strong x-text="t('ntrip_client')">NTRIP Client</strong>
           <span
             :class="ntrip_status_class"
             x-text="ntrip_client_status_text"
@@ -188,10 +196,10 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
         >
-          <label>Server</label>
+          <label x-text="t('server')">Máy chủ</label>
           <input x-model="config.ntrip_server" autocomplete="on" required />
 
-          <label>Port</label>
+          <label x-text="t('port')">Cổng</label>
           <div
             class="grid"
             style="grid-template-columns: 2fr 1fr; align-items: baseline"
@@ -199,7 +207,7 @@
             <input x-model="config.ntrip_port" autocomplete="on" required />
           </div>
 
-          <label>Mountpoint</label>
+          <label x-text="t('mountpoint')">Mountpoint</label>
           <div
             class="grid"
             style="grid-template-columns: 2fr 1fr; align-items: baseline"
@@ -213,15 +221,19 @@
                 <option :value="mp" x-text="mp"></option>
               </template>
             </select>
-            <button :class="'outline'" @click="ntripClientQueryMountpoints()">
-              Query
+            <button
+              :class="'outline'"
+              @click="ntripClientQueryMountpoints()"
+              x-text="t('query')"
+            >
+              Tra cứu
             </button>
           </div>
 
-          <label>Username</label>
+          <label x-text="t('username')">Tài khoản</label>
           <input x-model="config.ntrip_username" autocomplete="on" required />
 
-          <label>Password</label>
+          <label x-text="t('password')">Mật khẩu</label>
           <input x-model="config.ntrip_password" autocomplete="on" required />
         </div>
         <div
@@ -229,7 +241,13 @@
           style="grid-template-columns: 1fr 1fr; align-items: baseline"
         >
           <!-- Save NTRIP Client to a file -->
-          <button :class="'outline'" @click="ntripClientSave()">Save</button>
+          <button
+            :class="'outline'"
+            @click="ntripClientSave()"
+            x-text="t('save')"
+          >
+            Lưu
+          </button>
           <button
             :class="'outline'"
             :disabled="is_ntrip_client_connecting"
@@ -245,11 +263,11 @@
             <table>
               <thead>
                 <tr>
-                  <th><small>Server</small></th>
-                  <th><small>Port</small></th>
-                  <th><small>Mountpoint</small></th>
-                  <th><small>User</small></th>
-                  <th><small>Actions</small></th>
+                  <th><small x-text="t('server')">Máy chủ</small></th>
+                  <th><small x-text="t('port')">Cổng</small></th>
+                  <th><small x-text="t('mountpoint')">Mountpoint</small></th>
+                  <th><small x-text="t('user')">Tài khoản</small></th>
+                  <th><small x-text="t('actions')">Thao tác</small></th>
                 </tr>
               </thead>
               <tbody>
@@ -269,8 +287,9 @@
                           width: auto;
                         "
                         @click="ntripClientApply(item)"
+                        x-text="t('apply')"
                       >
-                        Apply
+                        Áp dụng
                       </button>
                       <button
                         class="outline secondary"
@@ -296,13 +315,14 @@
       <!-- Base Settings, show when Base mode -->
       <details name="card_base_settings" open x-show="displayMode === 'base'">
         <summary role="button" class="outline contrast">
-          <strong>Base Settings</strong>
+          <strong x-text="t('base_settings')">Cài đặt Base</strong>
           <button
             :class="'outline'"
             :disabled="status.gnss_mode === 1"
             @click="setGnssMode('base')"
+            x-text="t('activate_base_mode')"
           >
-            Activate Base Mode
+            Kích hoạt chế độ Base
           </button>
         </summary>
 
@@ -310,13 +330,13 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
         >
-          <label>Latitude</label>
+          <label x-text="t('latitude')">Vĩ độ</label>
           <input x-model="config.base_lat" />
 
-          <label>Longitude</label>
+          <label x-text="t('longitude')">Kinh độ</label>
           <input x-model="config.base_lon" />
 
-          <label>Height</label>
+          <label x-text="t('height')">Độ cao</label>
           <div
             class="grid"
             style="grid-template-columns: 1fr 1rem; align-items: baseline"
@@ -332,10 +352,16 @@
           class="grid"
           style="grid-template-columns: 1fr 1fr; align-items: baseline"
         >
-          <!-- Save Base Point to a file, ask for setting a Name, default name is "New Point" -->
-          <button :class="'outline'" @click="baseSave()">Save</button>
-          <button :class="'outline'" @click="setBaseAtCurrentPosition()">
-            Use Current Position
+          <!-- Save Base Point to a file -->
+          <button :class="'outline'" @click="baseSave()" x-text="t('save')">
+            Lưu
+          </button>
+          <button
+            :class="'outline'"
+            @click="setBaseAtCurrentPosition()"
+            x-text="t('use_current_position')"
+          >
+            Dùng tọa độ hiện tại
           </button>
         </div>
 
@@ -346,11 +372,11 @@
             <table>
               <thead>
                 <tr>
-                  <th><small>Name</small></th>
-                  <th><small>Lat</small></th>
-                  <th><small>Lon</small></th>
-                  <th><small>Height</small></th>
-                  <th><small>Actions</small></th>
+                  <th><small x-text="t('name')">Tên</small></th>
+                  <th><small x-text="t('latitude')">Vĩ độ</small></th>
+                  <th><small x-text="t('longitude')">Kinh độ</small></th>
+                  <th><small x-text="t('height')">Độ cao</small></th>
+                  <th><small x-text="t('actions')">Thao tác</small></th>
                 </tr>
               </thead>
               <tbody>
@@ -372,8 +398,9 @@
                           width: auto;
                         "
                         @click="baseApply(pt)"
+                        x-text="t('apply')"
                       >
-                        Apply
+                        Áp dụng
                       </button>
                       <button
                         class="outline secondary"
@@ -399,7 +426,7 @@
       <!-- NTRIP Caster, show when Base mode -->
       <details name="card_ntrip_server" open x-show="displayMode === 'base'">
         <summary role="button" class="outline contrast">
-          <strong>NTRIP Caster</strong>
+          <strong x-text="t('ntrip_caster')">NTRIP Caster</strong>
           <span x-text="status.ntrip_server_client_num"> </span>
           <span
             :class="ntrip_server_status_class"
@@ -415,19 +442,19 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
         >
-          <label>Host</label>
+          <label x-text="t('host')">Máy chủ</label>
           <input :value="(status.wifi_ip_addr || '192.168.4.1')" readonly />
 
-          <label>Port</label>
+          <label x-text="t('port')">Cổng</label>
           <input value="2101" readonly />
 
-          <label>Mountpoint</label>
+          <label x-text="t('mountpoint')">Mountpoint</label>
           <input value="BASE" readonly />
 
-          <label>Username</label>
+          <label x-text="t('username')">Tài khoản</label>
           <input value="BASE" readonly />
 
-          <label>Password</label>
+          <label x-text="t('password')">Mật khẩu</label>
           <input value="BASE" readonly />
         </div>
       </details>
@@ -435,13 +462,14 @@
       <!-- PPP Settings, show when PPP mode -->
       <details name="card_ppp_settings" open x-show="displayMode === 'ppp'">
         <summary role="button" class="outline contrast">
-          <strong>PPP Settings</strong>
+          <strong x-text="t('ppp_settings')">Cài đặt PPP</strong>
           <button
             :class="'outline'"
             :disabled="status.gnss_mode === 2"
             @click="setGnssMode('ppp')"
+            x-text="t('activate_ppp_mode')"
           >
-            Activate PPP Mode
+            Kích hoạt chế độ PPP
           </button>
         </summary>
 
@@ -449,16 +477,16 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
         >
-          <label>Duration</label>
+          <label x-text="t('duration')">Thời gian đo</label>
           <div
             class="grid"
             style="grid-template-columns: 1fr 4rem; align-items: baseline"
           >
             <input x-model="config.ppp_min_dur" />
-            <span>seconds</span>
+            <span x-text="t('seconds')">giây</span>
           </div>
 
-          <label>Accuracy</label>
+          <label x-text="t('accuracy')">Độ chính xác</label>
           <div
             class="grid"
             style="grid-template-columns: 1fr 4rem; align-items: baseline"
@@ -472,7 +500,7 @@
       <!-- Logger, show when PPP mode -->
       <details name="card_logger" x-show="displayMode === 'ppp'">
         <summary role="button" class="outline contrast">
-          <strong>Logger</strong>
+          <strong x-text="t('logger')">Ghi dữ liệu (Logger)</strong>
           <span :class="logger_status_class" x-text="logger_status_text"></span>
         </summary>
 
@@ -480,10 +508,10 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
         >
-          <label>Log File</label>
+          <label x-text="t('log_file')">Tệp log</label>
           <input x-model="logger_file_text" readonly />
 
-          <label>Log Size</label>
+          <label x-text="t('log_size')">Dung lượng</label>
           <input :value="logger_size_text" readonly />
 
           <div></div>
@@ -502,7 +530,7 @@
       <!-- WiFi Settings, always show -->
       <details name="card_wifi">
         <summary role="button" class="outline contrast">
-          <strong>WiFi</strong>
+          <strong x-text="t('wifi')">WiFi</strong>
           <span :class="wifi_status_class" x-text="wifi_status_text"></span>
           <span x-text="status.wifi_ip_addr"></span>
         </summary>
@@ -511,10 +539,10 @@
           class="grid"
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
         >
-          <label>WiFi AP</label>
+          <label x-text="t('wifi_ap')">Tên WiFi</label>
           <input x-model="config.wifi_ssid" autocomplete="on" required />
 
-          <label>Password</label>
+          <label x-text="t('password')">Mật khẩu</label>
           <input x-model="config.wifi_password" autocomplete="on" required />
         </div>
 
@@ -523,13 +551,16 @@
           style="grid-template-columns: 1fr 1fr; align-items: baseline"
         >
           <!-- Save WiFi Points to a file -->
-          <button :class="'outline'" @click="wifiSave()">Save</button>
+          <button :class="'outline'" @click="wifiSave()" x-text="t('save')">
+            Lưu
+          </button>
           <button
             :class="'outline'"
             :disabled="is_wifi_connecting"
             @click="wifiConnect()"
+            x-text="t('connect')"
           >
-            Connect
+            Kết nối
           </button>
         </div>
 
@@ -541,8 +572,8 @@
               <thead>
                 <tr>
                   <th><small>SSID</small></th>
-                  <th><small>Password</small></th>
-                  <th><small>Actions</small></th>
+                  <th><small x-text="t('password')">Mật khẩu</small></th>
+                  <th><small x-text="t('actions')">Thao tác</small></th>
                 </tr>
               </thead>
               <tbody>
@@ -562,8 +593,9 @@
                           width: auto;
                         "
                         @click="wifiApply(w)"
+                        x-text="t('apply')"
                       >
-                        Apply
+                        Áp dụng
                       </button>
                       <button
                         class="outline secondary"
@@ -589,20 +621,22 @@
       <!-- SDCard, always show -->
       <details name="card_sdcard">
         <summary role="button" class="outline contrast">
-          <strong>SDCard</strong>
+          <strong x-text="t('sdcard')">Thẻ nhớ SD</strong>
           <span :class="sdcard_status_class" x-text="sdcard_status_text"></span>
         </summary>
 
         <div style="max-height: 12rem; overflow-y: auto">
           <template x-if="sdcard_files.length === 0">
-            <small>No log files found.</small>
+            <small x-text="t('no_log_files')"
+              >Không tìm thấy tệp log nào.</small
+            >
           </template>
           <template x-if="sdcard_files.length > 0">
             <table>
               <thead>
                 <tr>
-                  <th><small>Filename</small></th>
-                  <th><small>Size (MB)</small></th>
+                  <th><small x-text="t('filename')">Tên tệp</small></th>
+                  <th><small x-text="t('size_mb')">Dung lượng (MB)</small></th>
                 </tr>
               </thead>
               <tbody>
@@ -619,6 +653,17 @@
           </template>
         </div>
       </details>
+
+      <div
+        class="grid"
+        style="grid-template-columns: 6rem 1fr; gap: 0; align-items: baseline"
+      >
+        <label x-text="t('language')">Ngôn ngữ</label>
+        <select x-model="lang">
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+        </select>
+      </div>
     </main>
 
     <footer class="container">
@@ -641,18 +686,207 @@
     </footer>
 
     <script>
+      const i18n = {
+        vi: {
+          language: "Ngôn ngữ",
+          connecting_device: "Đang kết nối tới thiết bị...",
+          gnss_position: "Tọa độ GNSS",
+          latitude: "Vĩ độ",
+          longitude: "Kinh độ",
+          height: "Độ cao",
+          time: "Thời gian",
+          rover: "Trạm động (Rover)",
+          base: "Trạm gốc (Base)",
+          ppp: "Đo tĩnh (PPP)",
+          rover_settings: "Cài đặt Rover",
+          activate_rover_mode: "Kích hoạt chế độ Rover",
+          ntrip_client: "NTRIP Client",
+          server: "Máy chủ",
+          port: "Cổng",
+          mountpoint: "Mountpoint",
+          username: "Tài khoản",
+          password: "Mật khẩu",
+          query: "Tra cứu",
+          save: "Lưu",
+          connect: "Kết nối",
+          disconnect: "Ngắt kết nối",
+          user: "Tài khoản",
+          actions: "Thao tác",
+          apply: "Áp dụng",
+          delete: "Xóa",
+          base_settings: "Cài đặt Base",
+          activate_base_mode: "Kích hoạt chế độ Base",
+          use_current_position: "Dùng tọa độ hiện tại",
+          name: "Tên",
+          ntrip_caster: "NTRIP Caster",
+          host: "Máy chủ (Host)",
+          ppp_settings: "Cài đặt PPP",
+          activate_ppp_mode: "Kích hoạt chế độ PPP",
+          duration: "Thời gian đo",
+          seconds: "giây",
+          accuracy: "Độ chính xác",
+          logger: "Ghi dữ liệu",
+          log_file: "Tệp log",
+          log_size: "Dung lượng",
+          not_logging: "Không ghi dữ liệu",
+          start_logging: "Bắt đầu ghi",
+          stop_logging: "Dừng ghi",
+          wifi: "WiFi",
+          wifi_ap: "Tên WiFi",
+          sdcard: "Thẻ nhớ SD",
+          no_log_files: "Không tìm thấy tệp nào.",
+          filename: "Tên tệp",
+          size_mb: "Dung lượng (MB)",
+          disconnected: "Đã ngắt kết nối",
+          connecting: "Đang kết nối",
+          connected: "Đã kết nối",
+          stopped: "Đã dừng",
+          listening: "Đang chờ kết nối",
+          streaming: "Đang truyền dữ liệu",
+          removed: "Chưa gắn",
+          mounted: "Đã gắn",
+          error: "Lỗi",
+          logging: "Đang ghi",
+          unknown: "Không xác định",
+          err_connect_device: "Không thể kết nối tới thiết bị.",
+          err_gnss_mode: "Lỗi khi chuyển chế độ GNSS.",
+          err_wifi_req: "Lỗi khi gửi yêu cầu WiFi.",
+          err_logger_stop: "Lỗi khi dừng ghi.",
+          err_logger_start: "Lỗi khi bắt đầu ghi.",
+          prompt_prefix: "Nhập tiền tố tên tệp (tùy chọn):",
+          err_ntrip_query: "Lỗi khi tra cứu danh sách mountpoint.",
+          err_ntrip_disc: "Lỗi khi ngắt kết nối NTRIP.",
+          err_ntrip_conn: "Lỗi khi kết nối NTRIP.",
+          err_ntrip_required: "Vui lòng nhập Máy chủ, Cổng và Mountpoint.",
+          err_ntrip_save: "Lỗi khi lưu cấu hình NTRIP Client.",
+          confirm_apply_ntrip: 'Áp dụng cấu hình NTRIP Client "{name}"?',
+          confirm_delete_ntrip: "Xóa cấu hình NTRIP Client {name}?",
+          err_ntrip_delete: "Lỗi khi xóa cấu hình NTRIP Client.",
+          prompt_base_name: "Nhập tên điểm Base:",
+          default_base_name: "Điểm mới",
+          err_base_save: "Lỗi khi lưu điểm Base.",
+          confirm_apply_base: 'Áp dụng điểm Base "{name}"?',
+          confirm_delete_base: "Xóa điểm Base {name}?",
+          err_base_delete: "Lỗi khi xóa điểm Base.",
+          err_wifi_required: "Vui lòng nhập tên WiFi (SSID).",
+          err_wifi_save: "Lỗi khi lưu cấu hình WiFi.",
+          confirm_apply_wifi: 'Áp dụng cài đặt WiFi cho "{ssid}"?',
+          confirm_delete_wifi: "Xóa cấu hình WiFi {name}?",
+          err_wifi_delete: "Lỗi khi xóa WiFi.",
+        },
+        en: {
+          language: "Language",
+          connecting_device: "Connecting to device...",
+          gnss_position: "GNSS Position",
+          latitude: "Latitude",
+          longitude: "Longitude",
+          height: "Height",
+          time: "Time",
+          rover: "Rover",
+          base: "Base",
+          ppp: "PPP",
+          rover_settings: "Rover Settings",
+          activate_rover_mode: "Activate Rover Mode",
+          ntrip_client: "NTRIP Client",
+          server: "Server",
+          port: "Port",
+          mountpoint: "Mountpoint",
+          username: "Username",
+          password: "Password",
+          query: "Query",
+          save: "Save",
+          connect: "Connect",
+          disconnect: "Disconnect",
+          user: "User",
+          actions: "Actions",
+          apply: "Apply",
+          delete: "Delete",
+          base_settings: "Base Settings",
+          activate_base_mode: "Activate Base Mode",
+          use_current_position: "Use Current Position",
+          name: "Name",
+          ntrip_caster: "NTRIP Caster",
+          host: "Host",
+          ppp_settings: "PPP Settings",
+          activate_ppp_mode: "Activate PPP Mode",
+          duration: "Duration",
+          seconds: "seconds",
+          accuracy: "Accuracy",
+          logger: "Logger",
+          log_file: "Log File",
+          log_size: "Log Size",
+          not_logging: "Not logging",
+          start_logging: "Start Logging",
+          stop_logging: "Stop Logging",
+          wifi: "WiFi",
+          wifi_ap: "WiFi AP",
+          sdcard: "SDCard",
+          no_log_files: "No log files found.",
+          filename: "Filename",
+          size_mb: "Size (MB)",
+          disconnected: "Disconnected",
+          connecting: "Connecting",
+          connected: "Connected",
+          stopped: "Stopped",
+          listening: "Listening",
+          streaming: "Streaming",
+          removed: "Removed",
+          mounted: "Mounted",
+          error: "Error",
+          logging: "Logging",
+          unknown: "Unknown",
+          err_connect_device: "Unable to connect to device.",
+          err_gnss_mode: "Failed to set GNSS mode.",
+          err_wifi_req: "Failed to send WiFi request.",
+          err_logger_stop: "Failed to stop logger.",
+          err_logger_start: "Failed to start logger.",
+          prompt_prefix: "Enter filename prefix (optional):",
+          err_ntrip_query: "Failed to query mountpoints.",
+          err_ntrip_disc: "Failed to disconnect NTRIP.",
+          err_ntrip_conn: "Failed to connect NTRIP.",
+          err_ntrip_required: "Please enter Server, Port, and Mountpoint.",
+          err_ntrip_save: "Failed to save NTRIP Client preset.",
+          confirm_apply_ntrip: 'Apply NTRIP Client preset "{name}"?',
+          confirm_delete_ntrip: "Delete NTRIP Client preset {name}?",
+          err_ntrip_delete: "Failed to delete NTRIP Client preset.",
+          prompt_base_name: "Enter Base Point Name:",
+          default_base_name: "New Point",
+          err_base_save: "Failed to save Base Point.",
+          confirm_apply_base: 'Apply Base Point "{name}"?',
+          confirm_delete_base: "Delete Base Point {name}?",
+          err_base_delete: "Failed to delete Base Point.",
+          err_wifi_required: "Please enter WiFi SSID.",
+          err_wifi_save: "Failed to save WiFi AP.",
+          confirm_apply_wifi: 'Apply WiFi settings for "{ssid}"?',
+          confirm_delete_wifi: "Delete WiFi preset {name}?",
+          err_wifi_delete: "Failed to delete WiFi AP.",
+        },
+      };
+
       document.addEventListener("alpine:init", () => {
         Alpine.data("app", () => ({
+          lang: localStorage.getItem("app_lang") || "vi",
           config: {}, // fields are defined in config.c
           status: {}, // fields are defined in status.c
           heartbeat: true,
-          message: "Connecting to device",
+          message: "",
           displayMode: "rover", // default display mode
           sdcard_files: [],
           ntrip_mountpoints: [],
           saved_ntrip_clients: [],
           saved_base_points: [],
           saved_wifi_list: [],
+
+          t(key, params = {}) {
+            let str =
+              (i18n[this.lang] && i18n[this.lang][key]) ||
+              (i18n["vi"] && i18n["vi"][key]) ||
+              key;
+            for (const [k, v] of Object.entries(params)) {
+              str = str.replace(new RegExp(`\\{${k}\\}`, "g"), v);
+            }
+            return str;
+          },
 
           // Computed properties
 
@@ -700,7 +934,7 @@
 
             return isNaN(t.getTime())
               ? "---"
-              : t.toLocaleString("vi-VN", {
+              : t.toLocaleString(this.lang === "vi" ? "vi-VN" : "en-US", {
                   timeZone: "Asia/Ho_Chi_Minh",
                 });
           },
@@ -742,8 +976,8 @@
           },
 
           get wifi_status_text() {
-            const statuses = ["Disconnected", "Connecting", "Connected"];
-            return statuses[this.status.wifi_status] ?? "Disconnected";
+            const keys = ["disconnected", "connecting", "connected"];
+            return this.t(keys[this.status.wifi_status] ?? "disconnected");
           },
 
           get is_wifi_connecting() {
@@ -756,8 +990,10 @@
           },
 
           get ntrip_client_status_text() {
-            const statuses = ["Disconnected", "Connecting", "Connected"];
-            return statuses[this.status.ntrip_client_status] ?? "Disconnected";
+            const keys = ["disconnected", "connecting", "connected"];
+            return this.t(
+              keys[this.status.ntrip_client_status] ?? "disconnected",
+            );
           },
 
           get ntrip_received_bytes_text() {
@@ -776,7 +1012,9 @@
           },
 
           get ntrip_button_text() {
-            return this.is_ntrip_connected ? "Disconnect" : "Connect";
+            return this.is_ntrip_connected
+              ? this.t("disconnect")
+              : this.t("connect");
           },
 
           get ntrip_server_status_class() {
@@ -785,8 +1023,8 @@
           },
 
           get ntrip_server_status_text() {
-            const statuses = ["Stopped", "Listening", "Streaming"];
-            return statuses[this.status.ntrip_server_status] ?? "Stopped";
+            const keys = ["stopped", "listening", "streaming"];
+            return this.t(keys[this.status.ntrip_server_status] ?? "stopped");
           },
 
           get ntrip_server_sent_bytes_text() {
@@ -802,8 +1040,8 @@
           },
 
           get sdcard_status_text() {
-            const statuses = ["Removed", "Mounted", "Error"];
-            return statuses[this.status.sdcard_status] ?? "Unknown";
+            const keys = ["removed", "mounted", "error"];
+            return this.t(keys[this.status.sdcard_status] ?? "unknown");
           },
 
           get logger_status_class() {
@@ -812,12 +1050,12 @@
           },
 
           get logger_status_text() {
-            const statuses = ["Stopped", "Logging", "Error"];
-            return statuses[this.status.logger_status] ?? "Unknown";
+            const keys = ["stopped", "logging", "error"];
+            return this.t(keys[this.status.logger_status] ?? "unknown");
           },
 
           get logger_file_text() {
-            return this.status.logger_file || "Not logging";
+            return this.status.logger_file || this.t("not_logging");
           },
 
           get logger_size_text() {
@@ -832,8 +1070,8 @@
 
           get logger_button_text() {
             return Number(this.status.logger_status) === 1
-              ? "Stop Logging"
-              : "Start Logging";
+              ? this.t("stop_logging")
+              : this.t("start_logging");
           },
 
           // Methods
@@ -890,7 +1128,7 @@
               this.setMessage("");
             } else {
               this.heartbeat = false;
-              this.setMessage("Unable to connect to device.");
+              this.setMessage(this.t("err_connect_device"));
             }
           },
 
@@ -913,7 +1151,7 @@
             if (res) {
               this.setMessage("");
             } else {
-              this.setMessage("Failed to set GNSS mode.");
+              this.setMessage(this.t("err_gnss_mode"));
             }
           },
 
@@ -930,7 +1168,7 @@
             if (res) {
               this.setMessage("");
             } else {
-              this.setMessage("Failed to send WiFi request.");
+              this.setMessage(this.t("err_wifi_req"));
             }
           },
 
@@ -945,10 +1183,10 @@
               if (res) {
                 await this.fetchFiles();
               } else {
-                this.setMessage("Failed to stop logger.");
+                this.setMessage(this.t("err_logger_stop"));
               }
             } else {
-              const pre = prompt("Enter filename prefix (optional):", "");
+              const pre = prompt(this.t("prompt_prefix"), "");
               const body = { command: "start", prefix: pre ?? "" };
               const res = await this.request("/logger", {
                 method: "POST",
@@ -958,7 +1196,7 @@
               if (res) {
                 await this.fetchFiles();
               } else {
-                this.setMessage("Failed to start logger.");
+                this.setMessage(this.t("err_logger_start"));
               }
             }
           },
@@ -1014,7 +1252,7 @@
               }),
             });
             if (!res) {
-              this.setMessage("Failed to query mountpoints.");
+              this.setMessage(this.t("err_ntrip_query"));
               return;
             }
             // Wait for async query to complete, then fetch mountpoints
@@ -1030,7 +1268,7 @@
                 body: JSON.stringify({ command: "disconnect" }),
               });
               if (!res) {
-                this.setMessage("Failed to disconnect NTRIP.");
+                this.setMessage(this.t("err_ntrip_disc"));
               }
             } else {
               const res = await this.request("/ntripclient", {
@@ -1046,7 +1284,7 @@
                 }),
               });
               if (!res) {
-                this.setMessage("Failed to connect NTRIP.");
+                this.setMessage(this.t("err_ntrip_conn"));
               }
             }
           },
@@ -1068,7 +1306,7 @@
               !this.config.ntrip_port ||
               !this.config.ntrip_mountpoint
             ) {
-              this.setMessage("Please enter Server, Port, and Mountpoint.");
+              this.setMessage(this.t("err_ntrip_required"));
               return;
             }
             const res = await this.request("/ntripclient", {
@@ -1087,12 +1325,14 @@
               this.setMessage("");
               await this.fetchNtripClientList();
             } else {
-              this.setMessage("Failed to save NTRIP Client preset.");
+              this.setMessage(this.t("err_ntrip_save"));
             }
           },
 
           ntripClientApply(item) {
-            if (!confirm(`Apply NTRIP Client preset "${item.mountpoint}"?`))
+            if (
+              !confirm(this.t("confirm_apply_ntrip", { name: item.mountpoint }))
+            )
               return;
             this.config.ntrip_server = item.server;
             this.config.ntrip_port = item.port;
@@ -1106,7 +1346,8 @@
             const name = item?.mountpoint
               ? `"${item.mountpoint}"`
               : "this preset";
-            if (!confirm(`Delete NTRIP Client preset ${name}?`)) return;
+            if (!confirm(this.t("confirm_delete_ntrip", { name: name })))
+              return;
             const res = await this.request("/ntripclient", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1115,7 +1356,7 @@
             if (res) {
               await this.fetchNtripClientList();
             } else {
-              this.setMessage("Failed to delete NTRIP Client preset.");
+              this.setMessage(this.t("err_ntrip_delete"));
             }
           },
 
@@ -1131,7 +1372,10 @@
           },
 
           async baseSave() {
-            const name = prompt("Enter Base Point Name:", "New Point");
+            const name = prompt(
+              this.t("prompt_base_name"),
+              this.t("default_base_name"),
+            );
             if (!name) return;
             const res = await this.request("/gnss", {
               method: "POST",
@@ -1148,12 +1392,13 @@
               this.setMessage("");
               await this.fetchBasePointsList();
             } else {
-              this.setMessage("Failed to save Base Point.");
+              this.setMessage(this.t("err_base_save"));
             }
           },
 
           baseApply(pt) {
-            if (!confirm(`Apply Base Point "${pt.name}"?`)) return;
+            if (!confirm(this.t("confirm_apply_base", { name: pt.name })))
+              return;
             this.config.base_lat = pt.lat;
             this.config.base_lon = pt.lon;
             this.config.base_height = pt.height;
@@ -1162,7 +1407,7 @@
           async baseDelete(index) {
             const pt = this.saved_base_points[index];
             const name = pt?.name ? `"${pt.name}"` : "this point";
-            if (!confirm(`Delete Base Point ${name}?`)) return;
+            if (!confirm(this.t("confirm_delete_base", { name: name }))) return;
             const res = await this.request("/gnss", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1171,7 +1416,7 @@
             if (res) {
               await this.fetchBasePointsList();
             } else {
-              this.setMessage("Failed to delete Base Point.");
+              this.setMessage(this.t("err_base_delete"));
             }
           },
 
@@ -1188,7 +1433,7 @@
 
           async wifiSave() {
             if (!this.config.wifi_ssid) {
-              this.setMessage("Please enter WiFi SSID.");
+              this.setMessage(this.t("err_wifi_required"));
               return;
             }
             const res = await this.request("/wifi", {
@@ -1204,12 +1449,13 @@
               this.setMessage("");
               await this.fetchWifiList();
             } else {
-              this.setMessage("Failed to save WiFi AP.");
+              this.setMessage(this.t("err_wifi_save"));
             }
           },
 
           wifiApply(w) {
-            if (!confirm(`Apply WiFi settings for "${w.ssid}"?`)) return;
+            if (!confirm(this.t("confirm_apply_wifi", { ssid: w.ssid })))
+              return;
             this.config.wifi_ssid = w.ssid;
             this.config.wifi_password = w.password ?? "";
           },
@@ -1217,7 +1463,7 @@
           async wifiDelete(index) {
             const w = this.saved_wifi_list[index];
             const name = w?.ssid ? `"${w.ssid}"` : "this network";
-            if (!confirm(`Delete WiFi preset ${name}?`)) return;
+            if (!confirm(this.t("confirm_delete_wifi", { name: name }))) return;
             const res = await this.request("/wifi", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1226,11 +1472,16 @@
             if (res) {
               await this.fetchWifiList();
             } else {
-              this.setMessage("Failed to delete WiFi AP.");
+              this.setMessage(this.t("err_wifi_delete"));
             }
           },
 
           async init() {
+            this.$watch("lang", (val) => {
+              localStorage.setItem("app_lang", val);
+              document.documentElement.lang = val;
+            });
+            this.message = this.t("connecting_device");
             await this.fetchConfig();
             await this.fetchStatus();
             setTimeout(() => this.fetchFiles(), 1000);
