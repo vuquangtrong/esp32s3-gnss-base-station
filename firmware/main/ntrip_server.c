@@ -61,7 +61,7 @@ static void ntrip_server_send_sourcetable(int32_t client_fd)
     double lon = (lon_str != NULL && strlen(lon_str) > 0) ? atof(lon_str) : 0.0;
     double height = (h_str != NULL && strlen(h_str) > 0) ? atof(h_str) : 0.0;
 
-    static char body[512] = {0};
+    char body[512] = {0};
     int32_t body_len = snprintf(
         body, sizeof(body),
         "STR;" NTRIP_SERVER_MOUNTPOINT ";" NTRIP_SERVER_MOUNTPOINT
@@ -71,11 +71,12 @@ static void ntrip_server_send_sourcetable(int32_t client_fd)
         lat, lon, height
     );
 
-    static char header[256] = {0};
+    char header[256] = {0};
     int32_t header_len = snprintf(
         header, sizeof(header),
-        "SOURCETABLE 200 OK\r\n"
-        "Server: NTRIP ESP32-GNSS-Caster/1.0\r\n"
+        "HTTP/1.1 200 OK\r\n"
+        "Server: NTRIP GNSS-Station/1.0\r\n"
+        "Ntrip-Version: Ntrip/2.0\r\n"
         "Content-Type: text/plain\r\n"
         "Content-Length: %ld\r\n"
         "Connection: close\r\n\r\n",
@@ -105,7 +106,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    static char req_buf[512] = {0};
+    char req_buf[512] = {0};
     int32_t received = recv(client_fd, req_buf, sizeof(req_buf) - 1, 0);
     if (received <= 0)
     {
@@ -119,7 +120,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     char uri[64] = {0};
     if (sscanf(req_buf, "%15s %63s", method, uri) < 2 || strcmp(method, "GET") != 0)
     {
-        const char* err_resp = "HTTP/1.0 400 Bad Request\r\n\r\n";
+        const char* err_resp = "HTTP/1.1 400 Bad Request\r\n\r\n";
         send(client_fd, err_resp, strlen(err_resp), 0);
         close(client_fd);
         return;
@@ -151,14 +152,19 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
         if (slot < 0)
         {
             ESP_LOGW(TAG, "Max clients reached (%d), rejecting %s", NTRIP_SERVER_MAX_CLIENTS, client_ip);
-            const char* busy_resp = "HTTP/1.0 503 Service Unavailable\r\n\r\n";
+            const char* busy_resp = "HTTP/1.1 503 Service Unavailable\r\n\r\n";
             send(client_fd, busy_resp, strlen(busy_resp), 0);
             close(client_fd);
             return;
         }
 
-        // Send NTRIP streaming response header
-        const char* ok_resp = "ICY 200 OK\r\n\r\n";
+        // Send NTRIP 2.0 streaming response header
+        const char* ok_resp =
+            "HTTP/1.1 200 OK\r\n"
+            "Server: NTRIP GNSS-Station/1.0\r\n"
+            "Ntrip-Version: Ntrip/2.0\r\n"
+            "Content-Type: gnss/data\r\n"
+            "Cache-Control: no-cache\r\n\r\n";
         send(client_fd, ok_resp, strlen(ok_resp), 0);
 
         // Set non-blocking mode for streaming socket
@@ -173,7 +179,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
 
     // Unknown mountpoint
     ESP_LOGW(TAG, "Unknown mountpoint requested: %s", uri);
-    const char* not_found_resp = "HTTP/1.0 404 Not Found\r\n\r\n";
+    const char* not_found_resp = "HTTP/1.1 404 Not Found\r\n\r\n";
     send(client_fd, not_found_resp, strlen(not_found_resp), 0);
     close(client_fd);
 }
@@ -215,25 +221,25 @@ static void ntrip_server_task(void* arg)
 
         if (sel_res > 0)
         {
-            // Check for new incoming connection
-            if (g_listen_fd >= 0 && FD_ISSET(g_listen_fd, &read_fds))
-            {
-                ntrip_server_handle_new_connection(g_listen_fd);
-            }
-
-            // Check active clients for disconnection / incoming GGA strings
+            // Check active clients for disconnection / incoming GGA strings before accepting new connections
             for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
             {
                 if (g_client_fds[i] >= 0 && FD_ISSET(g_client_fds[i], &read_fds))
                 {
                     int32_t r = recv(g_client_fds[i], dummy_rx, sizeof(dummy_rx), MSG_DONTWAIT);
-                    if (r <= 0)
+                    if (r == 0 || (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
                     {
                         ESP_LOGI(TAG, "Client slot %ld disconnected", (long)i);
                         close(g_client_fds[i]);
                         g_client_fds[i] = -1;
                     }
                 }
+            }
+
+            // Check for new incoming connection
+            if (g_listen_fd >= 0 && FD_ISSET(g_listen_fd, &read_fds))
+            {
+                ntrip_server_handle_new_connection(g_listen_fd);
             }
         }
 
@@ -368,7 +374,7 @@ esp_err_t ntrip_server_start(void)
 
     g_server_running = true;
 
-    if (xTaskCreate(ntrip_server_task, "ntrip_caster", 4096, NULL, 5, &g_server_task_handle) != pdPASS)
+    if (xTaskCreate(ntrip_server_task, "ntrip_caster", 8192, NULL, 5, &g_server_task_handle) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to create NTRIP caster task");
         close(g_listen_fd);

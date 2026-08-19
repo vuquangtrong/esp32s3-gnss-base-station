@@ -52,15 +52,7 @@ void ntrip_client_set_gga(const char* gga)
         return;
     }
 
-    size_t len = strlen(gga);
-    if (len >= NMEA_BUFFER_SIZE)
-    {
-        ESP_LOGW(TAG, "GGA message too long: %zu bytes", len);
-        return;
-    }
-
-    strncpy(g_gga_buffer, gga, NMEA_BUFFER_SIZE - 1);
-    g_gga_buffer[NMEA_BUFFER_SIZE - 1] = '\0';
+    strlcpy(g_gga_buffer, gga, NMEA_BUFFER_SIZE);
     g_gga_ready = true;
 }
 
@@ -228,18 +220,18 @@ void ntrip_client_query_mountpoints(const char* host, uint16_t port, const char*
         return;
     }
 
-    strncpy(args->host, host, NTRIP_HOST_LEN_MAX - 1);
+    strlcpy(args->host, host, NTRIP_HOST_LEN_MAX);
     args->port = port;
     if (username != NULL)
     {
-        strncpy(args->username, username, NTRIP_USER_LEN_MAX - 1);
+        strlcpy(args->username, username, NTRIP_USER_LEN_MAX);
     }
     if (password != NULL)
     {
-        strncpy(args->password, password, NTRIP_PASS_LEN_MAX - 1);
+        strlcpy(args->password, password, NTRIP_PASS_LEN_MAX);
     }
 
-    xTaskCreate(ntrip_query_mountpoints_task, "ntrip_get_mp", 4096, args, 5, NULL);
+    xTaskCreate(ntrip_query_mountpoints_task, "ntrip_get_mp", 8192, args, 5, NULL);
 }
 
 static void ntrip_stream_task(void* pvParameters)
@@ -387,20 +379,20 @@ void ntrip_client_connect_stream(const char* host, uint16_t port, const char* mo
         return;
     }
 
-    strncpy(args->host, host, NTRIP_HOST_LEN_MAX - 1);
+    strlcpy(args->host, host, NTRIP_HOST_LEN_MAX);
     args->port = port;
-    strncpy(args->mountpoint, mountpoint, NTRIP_MOUNTPOINT_LEN_MAX - 1);
+    strlcpy(args->mountpoint, mountpoint, NTRIP_MOUNTPOINT_LEN_MAX);
     if (username != NULL)
     {
-        strncpy(args->username, username, NTRIP_USER_LEN_MAX - 1);
+        strlcpy(args->username, username, NTRIP_USER_LEN_MAX);
     }
     if (password != NULL)
     {
-        strncpy(args->password, password, NTRIP_PASS_LEN_MAX - 1);
+        strlcpy(args->password, password, NTRIP_PASS_LEN_MAX);
     }
 
     g_stream_stop_flag = false;
-    xTaskCreate(ntrip_stream_task, "ntrip_stream", 4096, args, 5, &g_stream_task_handle);
+    xTaskCreate(ntrip_stream_task, "ntrip_stream", 8192, args, 5, &g_stream_task_handle);
 }
 
 void ntrip_client_disconnect_stream(void)

@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "ntrip_client.h"
 #include "status.h"
 #include "uart.h"
 
@@ -18,13 +19,6 @@ static TaskHandle_t g_parser_task_handle = NULL;
 static nmea_parser_ctx_t g_nmea_parser_ctx = {0};
 static ubx_parser_ctx_t g_ubx_parser_ctx = {0};
 
-static char g_nmea_gga[NMEA_BUFFER_SIZE] = {0};
-
-const char* parser_get_nmea_gga(void)
-{
-    return g_nmea_gga;
-}
-
 static void parser_process_nmea_gga(const char* gga_sentence)
 {
     if (gga_sentence == NULL || strlen(gga_sentence) == 0)
@@ -32,7 +26,7 @@ static void parser_process_nmea_gga(const char* gga_sentence)
         return;
     }
 
-    strlcpy(g_nmea_gga, gga_sentence, NMEA_BUFFER_SIZE);
+    ntrip_client_set_gga(gga_sentence);
 }
 
 static void parser_process_nmea(nmea_parser_ctx_t* ctx, const uint8_t* data, uint16_t length)
@@ -325,7 +319,7 @@ esp_err_t parser_init(void)
     memset(&g_nmea_parser_ctx, 0, sizeof(g_nmea_parser_ctx));
     memset(&g_ubx_parser_ctx, 0, sizeof(g_ubx_parser_ctx));
 
-    if (xTaskCreate(parser_task, "parser", 2048, NULL, 5, &g_parser_task_handle) != pdPASS)
+    if (xTaskCreate(parser_task, "parser", 4096, NULL, 5, &g_parser_task_handle) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to create parser task");
         return ESP_FAIL;

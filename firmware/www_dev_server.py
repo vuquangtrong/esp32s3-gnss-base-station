@@ -166,7 +166,8 @@ def gnss():
                 updated = True
                 break
         if not updated:
-            saved_base_points.append({"name": name, "lat": lat, "lon": lon, "height": height})
+            saved_base_points.append(
+                {"name": name, "lat": lat, "lon": lon, "height": height})
         return jsonify({"status": "ok"})
     elif command == "list":
         return jsonify({"gnss": saved_base_points})
@@ -261,12 +262,9 @@ def logger():
 
     command = data.get("command")
     if command == "start":
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
-        prefix = data.get("prefix", "")
-        if prefix:
-            filename = f"{prefix}_{now}.ubx"
-        else:
-            filename = f"{now}.ubx"
+        filename = data.get("filename", "")
+        if not filename:
+            return "Missing filename", 400
         logger_state["status"] = 1
         logger_state["file"] = filename
         logger_state["size"] = 0

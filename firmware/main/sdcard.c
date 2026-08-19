@@ -128,7 +128,7 @@ esp_err_t sdcard_init(void)
     }
 
     // Start monitor task to detect insert/remove
-    if (xTaskCreate(sdcard_task, "sdcard", 2560, NULL, 1, NULL) != pdPASS)
+    if (xTaskCreate(sdcard_task, "sdcard", 4096, NULL, 1, NULL) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to create SD card monitor task");
         return ESP_FAIL;

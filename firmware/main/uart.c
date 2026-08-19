@@ -87,6 +87,7 @@ void uart1_send_command(const char* msg)
     uart_write_bytes(UART1_PORT, buffer, n);
     uart_wait_tx_done(UART1_PORT, portMAX_DELAY);
     ESP_LOGI(TAG1, "sent command: %s", msg);
+    vTaskDelay(pdMS_TO_TICKS(50));  // wait for UBlox to process the command
 }
 
 void uart2_send_data(const uint8_t* data, size_t length)

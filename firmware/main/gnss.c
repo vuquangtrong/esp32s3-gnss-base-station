@@ -172,16 +172,16 @@ void gnss_base_set_fixed(
 {
     ESP_LOGI(TAG, "Setting base fixed position: latitude=%f, longitude=%f, height=%f", latitude, longitude, height);
 
-    int32_t lat_pos = (int32_t)(latitude * 1e7);                          // scale: 1e-7, in degrees
-    int32_t lat_hp = (int32_t)round((latitude * 1e9) - (lat_pos * 1e2));  // scale: 1e-9, in degrees
+    int32_t lat_pos = (int32_t)(latitude * 1e7);                     // scale: 1e-7, in degrees
+    int32_t lat_hp = (int32_t)((latitude * 1e9) - (lat_pos * 1e2));  // scale: 1e-9, in degrees
     ESP_LOGI(TAG, "lat_pos=%d, lat_hp=%d", lat_pos, lat_hp);
 
-    int32_t lon_pos = (int32_t)(longitude * 1e7);                          // scale: 1e-7, in degrees
-    int32_t lon_hp = (int32_t)round((longitude * 1e9) - (lon_pos * 1e2));  // scale: 1e-9, in degrees
+    int32_t lon_pos = (int32_t)(longitude * 1e7);                     // scale: 1e-7, in degrees
+    int32_t lon_hp = (int32_t)((longitude * 1e9) - (lon_pos * 1e2));  // scale: 1e-9, in degrees
     ESP_LOGI(TAG, "lon_pos=%d, lon_hp=%d", lon_pos, lon_hp);
 
-    int32_t height_pos = (int32_t)(height * 1e2);                             // in centimeters
-    int32_t height_hp = (int32_t)round((height * 1e4) - (height_pos * 1e2));  // scale: 0.1, in millimeters
+    int32_t height_pos = (int32_t)(height * 1e2);                        // in centimeters
+    int32_t height_hp = (int32_t)((height * 1e4) - (height_pos * 1e2));  // scale: 0.1, in millimeters
     ESP_LOGI(TAG, "height_pos=%d, height_hp=%d", height_pos, height_hp);
 
     char command[UBX_COMMAND_LEN_MAX];

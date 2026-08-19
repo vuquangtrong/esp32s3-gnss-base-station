@@ -636,22 +636,16 @@ static esp_err_t server_post_logger_handler(httpd_req_t* req)
 
     if (strcmp(command->valuestring, "start") == 0)
     {
-        // Read optional prefix from JSON body
-        cJSON* prefix_json = cJSON_GetObjectItem(root, "prefix");
-        const char* prefix = (prefix_json != NULL && cJSON_IsString(prefix_json)) ? prefix_json->valuestring : "";
-
-        // Build filename: "prefix_gnss_time.ubx" or "gnss_time.ubx" if no prefix
-        const char* gnss_time = status_get_str(STT_GNSS_TIME);
-        char filename[96];
-        if (prefix[0] != '\0')
+        // Read filename from JSON body
+        cJSON* filename_json = cJSON_GetObjectItem(root, "filename");
+        if (filename_json == NULL || !cJSON_IsString(filename_json) || filename_json->valuestring[0] == '\0')
         {
-            snprintf(filename, sizeof(filename), "%s_%s.ubx", prefix, gnss_time);
-        }
-        else
-        {
-            snprintf(filename, sizeof(filename), "%s.ubx", gnss_time);
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing filename");
+            return ESP_FAIL;
         }
 
+        const char* filename = filename_json->valuestring;
         esp_err_t err = logger_start(filename);
         cJSON_Delete(root);
 

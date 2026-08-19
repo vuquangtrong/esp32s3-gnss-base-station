@@ -83,6 +83,4 @@ typedef struct
 
 esp_err_t parser_init(void);
 
-const char* parser_get_nmea_gga(void);
-
 #endif  // PARSER_H

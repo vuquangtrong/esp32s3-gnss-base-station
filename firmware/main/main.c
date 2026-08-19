@@ -14,6 +14,8 @@
 #include "uart.h"
 #include "wifi.h"
 
+#if 0
+
 static void monitor_task(void* args)
 {
     char* stats_buffer = malloc(1024);
@@ -52,6 +54,7 @@ static void monitor_task(void* args)
     // Cleanup (though loop runs infinitely)
     free(stats_buffer);
 }
+#endif
 
 void app_main(void)
 {
@@ -69,6 +72,8 @@ void app_main(void)
     ESP_ERROR_CHECK(parser_init());
     ESP_ERROR_CHECK(server_init());
 
+#if 0
     // Pin to core 1 so it doesn't interrupt time-critical core 0 tasks
     xTaskCreatePinnedToCore(monitor_task, "monitor", 1536, NULL, 1, NULL, 1);
+#endif
 }
