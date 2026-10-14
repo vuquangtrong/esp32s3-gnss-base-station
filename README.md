@@ -172,7 +172,7 @@ sudo apt install eim
 
 Install ESP-IDF SDK from EIM:
 
-- Install latest STABLE version, at the moment, it is 6.0.2. The online document for ESP32-S3 is at <https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32s3/index.html>
+- Install latest STABLE version, at the moment, it is 6.1. The online document for ESP32-S3 is at <https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32s3/index.html>
 - Use default settings
 
 Add OpenOCD udev rules:
@@ -199,4 +199,46 @@ CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
 CONFIG_LOG_DYNAMIC_LEVEL_CONTROL=n
 CONFIG_LOG_TAG_LEVEL_IMPL_NONE=y
+```
+
+### Build
+
+Activate ESP-IDP devlopment environment:
+
+```sh
+source ~/.espressif/tools/activate_idf_v6.1.sh
+```
+
+then build:
+
+```sh
+idf.py set-target esp32s3
+idf.py build
+```
+
+then flash and monitor:
+
+```sh
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+### Create full image
+
+```sh
+idf.py merge-bin -o my_project_full.bin -f raw
+```
+
+Flash when ESP-IDF is activated:
+
+```sh
+esptool -c esp32s3 -p /dev/ttyAMC0 --before default-reset --after hard-reset write-flash 0x0 my_project_full.bin
+```
+
+Quick flash on other machine
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install esptool
+esptool -c esp32s3 -p /dev/ttyAMC0 --before default-reset --after hard-reset write-flash 0x0 my_project_full.bin
 ```
