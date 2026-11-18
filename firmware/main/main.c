@@ -14,6 +14,8 @@
 #include "uart.h"
 #include "wifi.h"
 
+#include "build_info.h"
+
 #if 0
 
 static void monitor_task(void* args)

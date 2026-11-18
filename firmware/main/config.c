@@ -9,6 +9,8 @@
 #include "nvs_flash.h"
 #include "wifi.h"
 
+#include "build_info.h"
+
 static const char* TAG = "config";
 static const char* NVS_NAMESPACE = "gnss_config";
 

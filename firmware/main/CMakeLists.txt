@@ -30,13 +30,22 @@ idf_component_register(SRCS ${srcs}
     WHOLE_ARCHIVE
 )
 
-git_describe(GIT_COMMIT ${CMAKE_CURRENT_SOURCE_DIR})
-string(TIMESTAMP BUILD_TIME "%Y-%m-%d %H:%M:%S")
+set(BUILD_INFO_HEADER "${CMAKE_CURRENT_BINARY_DIR}/build_info.h")
+
+add_custom_target(gen_build_info ALL
+    COMMAND ${CMAKE_COMMAND} -DOUT=${BUILD_INFO_HEADER} -DREPO_DIR=${CMAKE_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_build_info.cmake
+    BYPRODUCTS ${BUILD_INFO_HEADER}
+    COMMENT "Generating build_info.h"
+    VERBATIM
+)
+
+add_dependencies(${COMPONENT_LIB} gen_build_info)
+target_include_directories(${COMPONENT_LIB} PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     VERSION="${CMAKE_PROJECT_VERSION}"
-    GIT_COMMIT="${GIT_COMMIT}"
-    BUILD_TIME="${BUILD_TIME}"
     ETAG_CACHE_MAX=4
 )
 
