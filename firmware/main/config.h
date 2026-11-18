@@ -12,6 +12,9 @@ typedef enum
     CFG_BUILD_TIME,
     CFG_GIT_COMMIT,
 
+    // Device
+    CFG_DEVICE_ID,
+
     // WiFi
     CFG_WIFI_SSID,
     CFG_WIFI_PASSWORD,

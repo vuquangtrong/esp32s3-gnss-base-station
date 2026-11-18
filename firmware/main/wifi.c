@@ -109,6 +109,7 @@ esp_netif_t* wifi_init_softap(void)
     // set soft AP configuration
     snprintf((char*)g_wifi_ap_config.ap.ssid, sizeof(g_wifi_ap_config.ap.ssid), WIFI_AP_SSID_PREFIX "%02X%02X", mac[4], mac[5]);
     g_wifi_ap_config.ap.ssid_len = strlen((char*)g_wifi_ap_config.ap.ssid);
+    config_set(CFG_DEVICE_ID, (char*)g_wifi_ap_config.ap.ssid);
     snprintf((char*)g_wifi_ap_config.ap.password, sizeof(g_wifi_ap_config.ap.password), WIFI_AP_PASSWORD);
     g_wifi_ap_config.ap.channel = 1;
     g_wifi_ap_config.ap.max_connection = 4;

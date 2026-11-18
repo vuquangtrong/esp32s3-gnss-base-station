@@ -47,6 +47,7 @@ def sysinfo():
                 "version": "0.1",
                 "build_time": "2026-08-16 12:00:00",
                 "git_commit": "abc1234",
+                "device_id": "GNSS_0000",
                 # WiFi
                 "wifi_ssid": "TrongIP",
                 "wifi_password": "asdfghjkl",

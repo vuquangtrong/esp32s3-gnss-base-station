@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "wifi.h"
 
 static const char* TAG = "config";
 static const char* NVS_NAMESPACE = "gnss_config";
@@ -21,6 +22,8 @@ static config_entry_t g_configs[CFG_MAX] = {
     [CFG_VERSION] = {"version", VERSION},
     [CFG_BUILD_TIME] = {"build_time", BUILD_TIME},
     [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT},
+    // Device
+    [CFG_DEVICE_ID] = {"device_id", WIFI_AP_SSID_PREFIX "0000"},
     // WiFi
     [CFG_WIFI_SSID] = {"wifi_ssid", "TrongIP"},
     [CFG_WIFI_PASSWORD] = {"wifi_password", "asdfghjkl"},
