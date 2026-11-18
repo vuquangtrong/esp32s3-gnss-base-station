@@ -1,6 +1,7 @@
 #include "ntrip_server.h"
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -51,7 +52,140 @@ static int32_t ntrip_server_get_client_count(void)
     return count;
 }
 
-static void ntrip_server_send_sourcetable(int32_t client_fd)
+static bool ntrip_server_contains_ignore_case(const char* text, const char* pattern)
+{
+    if (text == NULL || pattern == NULL)
+    {
+        return false;
+    }
+
+    size_t text_len = strlen(text);
+    size_t pattern_len = strlen(pattern);
+    if (pattern_len == 0 || pattern_len > text_len)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i <= text_len - pattern_len; i++)
+    {
+        bool matched = true;
+        for (size_t j = 0; j < pattern_len; j++)
+        {
+            if (tolower((unsigned char)text[i + j]) != tolower((unsigned char)pattern[j]))
+            {
+                matched = false;
+                break;
+            }
+        }
+        if (matched)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A non-blocking send must be retried until every byte is accepted. Dropping the
+// tail of a buffer breaks the RTCM3 CRC of the last message in that buffer.
+static bool ntrip_server_send_all(int32_t client_fd, const uint8_t* data, size_t length)
+{
+    if (client_fd < 0 || data == NULL || length == 0)
+    {
+        return false;
+    }
+
+    size_t sent_total = 0;
+    uint32_t retry_count = 0;
+    while (sent_total < length && retry_count < NTRIP_SERVER_SEND_RETRY_MAX)
+    {
+        int32_t sent = send(client_fd, data + sent_total, length - sent_total, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (sent > 0)
+        {
+            sent_total += (size_t)sent;
+            continue;
+        }
+
+        if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
+        {
+            retry_count++;
+            vTaskDelay(pdMS_TO_TICKS(1));
+            continue;
+        }
+
+        return false;
+    }
+
+    return sent_total == length;
+}
+
+// Read the whole request header instead of relying on a single recv(), which may
+// return only the request line and leave headers (including Ntrip-Version) unread.
+static bool ntrip_server_recv_request(int32_t client_fd, char* req_buf, size_t req_buf_size)
+{
+    if (req_buf == NULL || req_buf_size < 2)
+    {
+        return false;
+    }
+
+    size_t received = 0;
+    int32_t elapsed_ms = 0;
+    while (received < req_buf_size - 1 && elapsed_ms < NTRIP_SERVER_REQUEST_TIMEOUT_MS)
+    {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(client_fd, &read_fds);
+        struct timeval tv = {.tv_sec = 0, .tv_usec = 20000};
+        int32_t ready = select(client_fd + 1, &read_fds, NULL, NULL, &tv);
+        if (ready <= 0)
+        {
+            elapsed_ms += 20;
+            continue;
+        }
+
+        int32_t r = recv(client_fd, &req_buf[received], req_buf_size - 1 - received, MSG_DONTWAIT);
+        if (r > 0)
+        {
+            received += (size_t)r;
+            req_buf[received] = '\0';
+            if (strstr(req_buf, "\r\n\r\n") != NULL || strstr(req_buf, "\n\n") != NULL)
+            {
+                return true;
+            }
+            continue;
+        }
+
+        if (r == 0)
+        {
+            return false;
+        }
+
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+        {
+            return false;
+        }
+    }
+
+    return received > 0;
+}
+
+static ntrip_version_t ntrip_server_detect_version(const char* req_buf)
+{
+#if NTRIP_SERVER_FORCE_VERSION == 1
+    return NTRIP_VERSION_1;
+#elif NTRIP_SERVER_FORCE_VERSION == 2
+    return NTRIP_VERSION_2;
+#else
+    // NTRIP 1.0 clients (RTKLIB based receivers and DJI CSDK) do not send the
+    // Ntrip-Version header and wait for "ICY 200 OK" before reading corrections.
+    if (ntrip_server_contains_ignore_case(req_buf, "Ntrip-Version: Ntrip/2.0"))
+    {
+        return NTRIP_VERSION_2;
+    }
+    return NTRIP_VERSION_1;
+#endif
+}
+
+static void ntrip_server_send_sourcetable(int32_t client_fd, ntrip_version_t version)
 {
     const char* lat_str = config_get(CFG_BASE_LAT);
     const char* lon_str = config_get(CFG_BASE_LON);
@@ -70,22 +204,71 @@ static void ntrip_server_send_sourcetable(int32_t client_fd)
         "ENDSOURCETABLE\r\n",
         lat, lon, height
     );
+    if (body_len > (int32_t)sizeof(body) - 1)
+    {
+        body_len = (int32_t)sizeof(body) - 1;
+    }
 
-    char header[256] = {0};
-    int32_t header_len = snprintf(
-        header, sizeof(header),
+    char header[320] = {0};
+    int32_t header_len = 0;
+    if (version == NTRIP_VERSION_2)
+    {
+        header_len = snprintf(
+            header, sizeof(header),
+            "HTTP/1.1 200 OK\r\n"
+            "Server: NTRIP GNSS-Station/1.0\r\n"
+            "Ntrip-Version: Ntrip/2.0\r\n"
+            "Content-Type: gnss/sourcetable\r\n"
+            "Content-Length: %ld\r\n"
+            "Connection: close\r\n\r\n",
+            (long)body_len
+        );
+    }
+    else
+    {
+        header_len = snprintf(
+            header, sizeof(header),
+            "SOURCETABLE 200 OK\r\n"
+            "Server: NTRIP GNSS-Station/1.0\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: %ld\r\n"
+            "Connection: close\r\n\r\n",
+            (long)body_len
+        );
+    }
+    if (header_len > (int32_t)sizeof(header) - 1)
+    {
+        header_len = (int32_t)sizeof(header) - 1;
+    }
+
+    if (header_len > 0)
+    {
+        ntrip_server_send_all(client_fd, (const uint8_t*)header, (size_t)header_len);
+    }
+    if (body_len > 0)
+    {
+        ntrip_server_send_all(client_fd, (const uint8_t*)body, (size_t)body_len);
+    }
+    ESP_LOGI(TAG, "Sent sourcetable (lat: %.7f, lon: %.7f, h: %.4f)", lat, lon, height);
+}
+
+static void ntrip_server_send_stream_header(int32_t client_fd, ntrip_version_t version)
+{
+    if (version == NTRIP_VERSION_1)
+    {
+        const char* icy_resp = "ICY 200 OK\r\n";
+        ntrip_server_send_all(client_fd, (const uint8_t*)icy_resp, strlen(icy_resp));
+        return;
+    }
+
+    const char* ok_resp =
         "HTTP/1.1 200 OK\r\n"
         "Server: NTRIP GNSS-Station/1.0\r\n"
         "Ntrip-Version: Ntrip/2.0\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: %ld\r\n"
-        "Connection: close\r\n\r\n",
-        (long)body_len
-    );
-
-    send(client_fd, header, header_len, 0);
-    send(client_fd, body, body_len, 0);
-    ESP_LOGI(TAG, "Sent sourcetable (lat: %.7f, lon: %.7f, h: %.4f)", lat, lon, height);
+        "Content-Type: gnss/data\r\n"
+        "Cache-Control: no-store, no-cache, max-age=0\r\n"
+        "Pragma: no-cache\r\n\r\n";
+    ntrip_server_send_all(client_fd, (const uint8_t*)ok_resp, strlen(ok_resp));
 }
 
 static void ntrip_server_handle_new_connection(int32_t listen_fd)
@@ -107,29 +290,32 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     char req_buf[512] = {0};
-    int32_t received = recv(client_fd, req_buf, sizeof(req_buf) - 1, 0);
-    if (received <= 0)
+    if (!ntrip_server_recv_request(client_fd, req_buf, sizeof(req_buf)))
     {
         close(client_fd);
         return;
     }
-    req_buf[received] = '\0';
 
-    // Parse method and URI: e.g. "GET / HTTP/1.0" or "GET /BASE HTTP/1.1"
+    ESP_LOGD(TAG, "Client request: %.128s", req_buf);
+
+    // Parse the request
     char method[16] = {0};
     char uri[64] = {0};
     if (sscanf(req_buf, "%15s %63s", method, uri) < 2 || strcmp(method, "GET") != 0)
     {
         const char* err_resp = "HTTP/1.1 400 Bad Request\r\n\r\n";
-        send(client_fd, err_resp, strlen(err_resp), 0);
+        ntrip_server_send_all(client_fd, (const uint8_t*)err_resp, strlen(err_resp));
         close(client_fd);
         return;
     }
 
+    // Determine NTRIP version based on the request headers
+    ntrip_version_t version = ntrip_server_detect_version(req_buf);
+
     // Sourcetable requested on "/" or "/sourcetable"
     if (strcmp(uri, "/") == 0 || strcasecmp(uri, "/sourcetable") == 0)
     {
-        ntrip_server_send_sourcetable(client_fd);
+        ntrip_server_send_sourcetable(client_fd, version);
         close(client_fd);
         return;
     }
@@ -138,7 +324,6 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     const char* mount_name = (uri[0] == '/') ? &uri[1] : uri;
     if (strcasecmp(mount_name, NTRIP_SERVER_MOUNTPOINT) == 0)
     {
-        // Find empty slot for client
         int32_t slot = -1;
         for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
         {
@@ -153,26 +338,19 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
         {
             ESP_LOGW(TAG, "Max clients reached (%d), rejecting %s", NTRIP_SERVER_MAX_CLIENTS, client_ip);
             const char* busy_resp = "HTTP/1.1 503 Service Unavailable\r\n\r\n";
-            send(client_fd, busy_resp, strlen(busy_resp), 0);
+            ntrip_server_send_all(client_fd, (const uint8_t*)busy_resp, strlen(busy_resp));
             close(client_fd);
             return;
         }
 
-        // Send NTRIP 2.0 streaming response header
-        const char* ok_resp =
-            "HTTP/1.1 200 OK\r\n"
-            "Server: NTRIP GNSS-Station/1.0\r\n"
-            "Ntrip-Version: Ntrip/2.0\r\n"
-            "Content-Type: gnss/data\r\n"
-            "Cache-Control: no-cache\r\n\r\n";
-        send(client_fd, ok_resp, strlen(ok_resp), 0);
+        // Send the appropriate response header based on the NTRIP version
+        ntrip_server_send_stream_header(client_fd, version);
 
-        // Set non-blocking mode for streaming socket
         int32_t flags = fcntl(client_fd, F_GETFL, 0);
         fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
         g_client_fds[slot] = client_fd;
-        ESP_LOGI(TAG, "Client joined slot %ld: %s (/BASE)", (long)slot, client_ip);
+        ESP_LOGI(TAG, "Client joined slot %ld: %s (/BASE, NTRIP %d)", (long)slot, client_ip, (version == NTRIP_VERSION_2) ? 2 : 1);
         status_set(STT_NTRIP_SERVER_STATUS, CONN_CONNECTED);
         return;
     }
@@ -180,7 +358,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     // Unknown mountpoint
     ESP_LOGW(TAG, "Unknown mountpoint requested: %s", uri);
     const char* not_found_resp = "HTTP/1.1 404 Not Found\r\n\r\n";
-    send(client_fd, not_found_resp, strlen(not_found_resp), 0);
+    ntrip_server_send_all(client_fd, (const uint8_t*)not_found_resp, strlen(not_found_resp));
     close(client_fd);
 }
 
@@ -222,6 +400,7 @@ static void ntrip_server_task(void* arg)
         if (sel_res > 0)
         {
             // Check active clients for disconnection / incoming GGA strings before accepting new connections
+            // GGA sentences sent by clients arrive here and are intentionally discarded
             for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
             {
                 if (g_client_fds[i] >= 0 && FD_ISSET(g_client_fds[i], &read_fds))
@@ -263,19 +442,15 @@ static void ntrip_server_task(void* arg)
                 {
                     if (g_client_fds[i] >= 0)
                     {
-                        int32_t sent = send(g_client_fds[i], rx_buf, (size_t)bytes_read, MSG_DONTWAIT | MSG_NOSIGNAL);
-                        if (sent < 0)
+                        if (ntrip_server_send_all(g_client_fds[i], rx_buf, (size_t)bytes_read))
                         {
-                            if (errno != EAGAIN && errno != EWOULDBLOCK)
-                            {
-                                ESP_LOGW(TAG, "Send error on slot %ld (errno %d), closing", (long)i, errno);
-                                close(g_client_fds[i]);
-                                g_client_fds[i] = -1;
-                            }
+                            total_sent_this_chunk += bytes_read;
                         }
                         else
                         {
-                            total_sent_this_chunk += sent;
+                            ESP_LOGW(TAG, "Send error on slot %ld, closing", (long)i);
+                            close(g_client_fds[i]);
+                            g_client_fds[i] = -1;
                         }
                     }
                 }
