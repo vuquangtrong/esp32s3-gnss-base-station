@@ -17,6 +17,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lwip/sockets.h"
 #include "status.h"
 #include "uart.h"
 
@@ -26,18 +27,6 @@ static TaskHandle_t g_server_task_handle = NULL;
 static volatile bool g_server_running = false;
 static int32_t g_listen_fd = -1;
 static int32_t g_client_fds[NTRIP_SERVER_MAX_CLIENTS] = {-1, -1, -1, -1};
-
-static void ntrip_server_clear_clients(void)
-{
-    for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
-    {
-        if (g_client_fds[i] >= 0)
-        {
-            close(g_client_fds[i]);
-            g_client_fds[i] = -1;
-        }
-    }
-}
 
 static int32_t ntrip_server_get_client_count(void)
 {
@@ -50,6 +39,68 @@ static int32_t ntrip_server_get_client_count(void)
         }
     }
     return count;
+}
+
+// Derive both status values from the client table in one place. Every join and
+// leave goes through here so the UI never keeps showing a client that is gone.
+static void ntrip_server_update_status(void)
+{
+    int32_t active_clients = ntrip_server_get_client_count();
+    status_set(STT_NTRIP_SERVER_CLIENT_NUM, active_clients);
+
+    connection_status_t server_status = CONN_DISCONNECTED;
+    if (g_server_running)
+    {
+        server_status = (active_clients > 0) ? CONN_CONNECTED : CONN_CONNECTING;
+    }
+    status_set(STT_NTRIP_SERVER_STATUS, (int)server_status);
+}
+
+static void ntrip_server_close_client(int32_t slot)
+{
+    if (slot < 0 || slot >= NTRIP_SERVER_MAX_CLIENTS || g_client_fds[slot] < 0)
+    {
+        return;
+    }
+
+    close(g_client_fds[slot]);
+    g_client_fds[slot] = -1;
+    ntrip_server_update_status();
+}
+
+static void ntrip_server_clear_clients(void)
+{
+    for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
+    {
+        if (g_client_fds[i] >= 0)
+        {
+            close(g_client_fds[i]);
+            g_client_fds[i] = -1;
+        }
+    }
+    ntrip_server_update_status();
+}
+
+static void ntrip_server_configure_client_socket(int32_t client_fd)
+{
+    int32_t opt = 1;
+    setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
+    setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+    // Detect clients that disappear without sending FIN (power loss, network
+    // drop). Without keepalive the slot stays occupied until a send fails.
+#ifdef TCP_KEEPIDLE
+    int32_t keep_idle = NTRIP_SERVER_TCP_KEEPALIVE_IDLE_SEC;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPIDLE, &keep_idle, sizeof(keep_idle));
+#endif
+#ifdef TCP_KEEPINTVL
+    int32_t keep_interval = NTRIP_SERVER_TCP_KEEPALIVE_INTERVAL_SEC;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPINTVL, &keep_interval, sizeof(keep_interval));
+#endif
+#ifdef TCP_KEEPCNT
+    int32_t keep_count = NTRIP_SERVER_TCP_KEEPALIVE_COUNT;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPCNT, &keep_count, sizeof(keep_count));
+#endif
 }
 
 static bool ntrip_server_contains_ignore_case(const char* text, const char* pattern)
@@ -289,7 +340,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    char req_buf[512] = {0};
+    char req_buf[NTRIP_SERVER_REQUEST_BUFFER_SIZE] = {0};
     if (!ntrip_server_recv_request(client_fd, req_buf, sizeof(req_buf)))
     {
         close(client_fd);
@@ -345,13 +396,14 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
 
         // Send the appropriate response header based on the NTRIP version
         ntrip_server_send_stream_header(client_fd, version);
+        ntrip_server_configure_client_socket(client_fd);
 
         int32_t flags = fcntl(client_fd, F_GETFL, 0);
         fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
         g_client_fds[slot] = client_fd;
         ESP_LOGI(TAG, "Client joined slot %ld: %s (/BASE, NTRIP %d)", (long)slot, client_ip, (version == NTRIP_VERSION_2) ? 2 : 1);
-        status_set(STT_NTRIP_SERVER_STATUS, CONN_CONNECTED);
+        ntrip_server_update_status();
         return;
     }
 
@@ -368,7 +420,7 @@ static void ntrip_server_task(void* arg)
     ESP_LOGI(TAG, "NTRIP caster server task started on port %d", NTRIP_SERVER_PORT);
 
     static uint8_t rx_buf[NTRIP_SERVER_BUFFER_SIZE] = {0};
-    static char dummy_rx[64] = {0};
+    static char dummy_rx[NTRIP_SERVER_DUMMY_RX_SIZE] = {0};
 
     while (g_server_running)
     {
@@ -394,24 +446,63 @@ static void ntrip_server_task(void* arg)
             }
         }
 
-        struct timeval tv = {.tv_sec = 0, .tv_usec = 20000};  // 20ms poll interval
+        struct timeval tv = {.tv_sec = 0, .tv_usec = NTRIP_SERVER_SELECT_TIMEOUT_MS * 1000};
         int32_t sel_res = select(max_fd + 1, &read_fds, NULL, NULL, &tv);
 
         if (sel_res > 0)
         {
-            // Check active clients for disconnection / incoming GGA strings before accepting new connections
-            // GGA sentences sent by clients arrive here and are intentionally discarded
+            // Check active clients for disconnection / incoming GGA strings before accepting new connections.
+            // GGA sentences sent by clients arrive here and are intentionally discarded. Drain the whole
+            // readable batch: a single recv() may return GGA bytes and leave the peer's FIN unread, so a
+            // one-shot recv() can keep a disconnected client in the slot (and in the UI count) forever.
             for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
             {
-                if (g_client_fds[i] >= 0 && FD_ISSET(g_client_fds[i], &read_fds))
+                if (g_client_fds[i] < 0 || !FD_ISSET(g_client_fds[i], &read_fds))
+                {
+                    continue;
+                }
+
+                bool disconnected = false;
+                for (uint8_t drain = 0; drain < NTRIP_SERVER_RECV_DRAIN_MAX; drain++)
                 {
                     int32_t r = recv(g_client_fds[i], dummy_rx, sizeof(dummy_rx), MSG_DONTWAIT);
-                    if (r == 0 || (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
+                    if (r > 0)
                     {
-                        ESP_LOGI(TAG, "Client slot %ld disconnected", (long)i);
-                        close(g_client_fds[i]);
-                        g_client_fds[i] = -1;
+                        continue;
                     }
+                    if (r == 0)
+                    {
+                        disconnected = true;
+                        break;
+                    }
+                    if (errno == EINTR)
+                    {
+                        continue;
+                    }
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    {
+                        break;
+                    }
+                    disconnected = true;
+                    break;
+                }
+
+                // A pending socket error (e.g. RST) is also a disconnect, even if
+                // select() only reported the socket as readable.
+                if (!disconnected)
+                {
+                    int32_t socket_error = 0;
+                    socklen_t error_len = sizeof(socket_error);
+                    if (getsockopt(g_client_fds[i], SOL_SOCKET, SO_ERROR, &socket_error, &error_len) == 0 && socket_error != 0)
+                    {
+                        disconnected = true;
+                    }
+                }
+
+                if (disconnected)
+                {
+                    ESP_LOGI(TAG, "Client slot %ld disconnected", (long)i);
+                    ntrip_server_close_client(i);
                 }
             }
 
@@ -426,6 +517,7 @@ static void ntrip_server_task(void* arg)
         if (status_get_int(STT_GNSS_MODE) == GNSS_BASE)
         {
             size_t buffered_len = 0;
+            int32_t total_sent_this_tick = 0;
             uart_get_buffered_data_len(UART2_PORT, &buffered_len);
 
             while (buffered_len > 0 && g_server_running)
@@ -449,36 +541,30 @@ static void ntrip_server_task(void* arg)
                         else
                         {
                             ESP_LOGW(TAG, "Send error on slot %ld, closing", (long)i);
-                            close(g_client_fds[i]);
-                            g_client_fds[i] = -1;
+                            ntrip_server_close_client(i);
                         }
                     }
                 }
 
-                if (total_sent_this_chunk > 0)
-                {
-                    status_set(STT_NTRIP_SENT_BYTES, status_get_int(STT_NTRIP_SENT_BYTES) + total_sent_this_chunk);
-                }
-
+                total_sent_this_tick += total_sent_this_chunk;
                 uart_get_buffered_data_len(UART2_PORT, &buffered_len);
+            }
+
+            // Publish once per loop instead of once per UART chunk.
+            if (total_sent_this_tick > 0)
+            {
+                status_set(STT_NTRIP_SENT_BYTES, status_get_int(STT_NTRIP_SENT_BYTES) + total_sent_this_tick);
             }
         }
 
-        // Update server connection status based on active clients
-        int32_t active_clients = ntrip_server_get_client_count();
-        status_set(STT_NTRIP_SERVER_CLIENT_NUM, active_clients);
-        if (active_clients > 0)
-        {
-            status_set(STT_NTRIP_SERVER_STATUS, CONN_CONNECTED);
-        }
-        else
-        {
-            status_set(STT_NTRIP_SERVER_STATUS, CONN_CONNECTING);
-        }
+        // Keep the published count in sync even if a slot changed without an
+        // explicit event (e.g. a peer dropped between two select() calls).
+        ntrip_server_update_status();
     }
 
     // Cleanup resources
     ntrip_server_clear_clients();
+    status_set(STT_NTRIP_SERVER_STATUS, CONN_DISCONNECTED);
     if (g_listen_fd >= 0)
     {
         close(g_listen_fd);
@@ -543,20 +629,18 @@ esp_err_t ntrip_server_start(void)
     }
 
     ntrip_server_clear_clients();
-    status_set(STT_NTRIP_SERVER_STATUS, CONN_CONNECTING);
-    status_set(STT_NTRIP_SERVER_CLIENT_NUM, 0);
     status_set(STT_NTRIP_SENT_BYTES, 0);
 
     g_server_running = true;
+    ntrip_server_update_status();
 
-    if (xTaskCreate(ntrip_server_task, "ntrip_caster", 8192, NULL, 5, &g_server_task_handle) != pdPASS)
+    if (xTaskCreate(ntrip_server_task, "ntrip_caster", NTRIP_SERVER_TASK_STACK_SIZE, NULL, NTRIP_SERVER_TASK_PRIORITY, &g_server_task_handle) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to create NTRIP caster task");
         close(g_listen_fd);
         g_listen_fd = -1;
         g_server_running = false;
-        status_set(STT_NTRIP_SERVER_STATUS, CONN_DISCONNECTED);
-        status_set(STT_NTRIP_SERVER_CLIENT_NUM, 0);
+        ntrip_server_update_status();
         return ESP_FAIL;
     }
 
@@ -579,8 +663,7 @@ esp_err_t ntrip_server_stop(void)
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    status_set(STT_NTRIP_SERVER_CLIENT_NUM, 0);
-    status_set(STT_NTRIP_SERVER_STATUS, CONN_DISCONNECTED);
+    ntrip_server_update_status();
     ESP_LOGI(TAG, "NTRIP caster server stopped");
     return ESP_OK;
 }

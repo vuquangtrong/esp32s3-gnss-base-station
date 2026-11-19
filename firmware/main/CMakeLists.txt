@@ -28,8 +28,9 @@ idf_component_register(SRCS ${srcs}
         esp_driver_uart
         esp_http_server
         esp_http_client
-        app_update
         esp_partition
+        esp_hw_support
+        app_update
     WHOLE_ARCHIVE
 )
 

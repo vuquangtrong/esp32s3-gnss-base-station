@@ -7,7 +7,7 @@ Project structure:
 
 Technical Stack:
 
-- Target on ESP32-S3, using [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html), at least ESP-IDF 6.0.2
+- Target on ESP32-S3, using [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html), at least ESP-IDF 6.1
 - Frontend Webpage uses [Pico.css](https://picocss.com/) for styling, and [Alpine.js](https://alpinejs.dev/) for reactive data binding and elements.
 
 Development best practices and rules:
@@ -25,5 +25,5 @@ Development best practices and rules:
 Build steps:
 
 - Change to the project's root directory first
-- Then activate IDF env: `source $HOME/.espressif/tools/activate_idf_v6.0.2.sh`
+- Then activate IDF env: `source $HOME/.espressif/tools/activate_idf_v6.1.sh`
 - Then run build command: `idf.py build`

@@ -939,7 +939,17 @@ static esp_err_t server_post_firmware_handler(httpd_req_t* req)
 esp_err_t server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.stack_size = 16384;
+    config.stack_size = SERVER_HTTPD_STACK_SIZE;
+    config.max_open_sockets = SERVER_HTTPD_MAX_OPEN_SOCKETS;
+    config.max_uri_handlers = SERVER_HTTPD_MAX_URI_HANDLERS;
+    config.backlog_conn = SERVER_HTTPD_BACKLOG_CONN;
+    config.lru_purge_enable = SERVER_HTTPD_LRU_PURGE_ENABLE;
+    config.recv_wait_timeout = SERVER_HTTPD_RECV_WAIT_TIMEOUT;
+    config.send_wait_timeout = SERVER_HTTPD_SEND_WAIT_TIMEOUT;
+    config.keep_alive_enable = SERVER_HTTPD_KEEP_ALIVE_ENABLE;
+    config.keep_alive_idle = SERVER_HTTPD_KEEP_ALIVE_IDLE;
+    config.keep_alive_interval = SERVER_HTTPD_KEEP_ALIVE_INTERVAL;
+    config.keep_alive_count = SERVER_HTTPD_KEEP_ALIVE_COUNT;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESP_LOGI(TAG, "Starting HTTP Server");

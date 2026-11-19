@@ -225,13 +225,13 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ### Create full image
 
 ```sh
-idf.py merge-bin -o my_project_full.bin -f raw
+idf.py merge-bin -o full.bin -f raw
 ```
 
 Flash when ESP-IDF is activated:
 
 ```sh
-esptool -c esp32s3 -p /dev/ttyAMC0 --before default-reset --after hard-reset write-flash 0x0 my_project_full.bin
+esptool -c esp32s3 -p /dev/ttyUSB0 --before default-reset --after hard-reset write-flash 0x0 build/full.bin
 ```
 
 Quick flash on other machine
@@ -240,7 +240,7 @@ Quick flash on other machine
 python3 -m venv .venv
 source .venv/bin/activate
 pip install esptool
-esptool -c esp32s3 -p /dev/ttyAMC0 --before default-reset --after hard-reset write-flash 0x0 my_project_full.bin
+esptool -c esp32s3 -p /dev/ttyAMC0 --before default-reset --after hard-reset write-flash 0x0 full.bin
 ```
 
 ### Firmware update over SD card
@@ -268,4 +268,3 @@ Insert the card into the device. In the web UI, the **Firmware Update** section 
 If any step fails, the device restores booting from the previous `factory` image and reboots, so it is never left unbootable. Keep the SD card inserted until both reboots complete and the new version appears in the UI footer.
 
 The package can also be built directly with `python3 pack_firmware.py` (use `--app`, `--www`, `--partitions` and `--output` to override paths).
-

@@ -7,8 +7,9 @@
 #include "cJSON.h"
 #include "driver/sdmmc_host.h"
 #include "esp_log.h"
-#include "firmware_update.h"
+#include "esp_private/esp_gpio_reserve.h"
 #include "esp_vfs_fat.h"
+#include "firmware_update.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdmmc_cmd.h"
@@ -31,6 +32,10 @@ static esp_err_t sdcard_mount(void)
         .max_files = SDCARD_MAX_FILES,
         .allocation_unit_size = SDCARD_ALLOCATION_UNIT_SIZE
     };
+
+    // GPIO16 is also used as SDMMC D3. Release any earlier reservation so a
+    // failed mount/remount attempt cannot leave the pin unavailable forever.
+    esp_gpio_revoke(BIT64(SDCARD_PIN_D3));
 
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.unaligned_multi_block_rw_max_chunk_size = 8;
@@ -71,26 +76,25 @@ static esp_err_t sdcard_mount(void)
     return ESP_OK;
 }
 
-static void sdcard_unmount(void)
+static esp_err_t sdcard_unmount(void)
 {
     if (g_card == NULL)
     {
-        return;
+        return ESP_OK;
     }
 
     esp_err_t ret = esp_vfs_fat_sdcard_unmount(SDCARD_MOUNT_POINT, g_card);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to unmount: %s", esp_err_to_name(ret));
-    }
-    else
-    {
-        ESP_LOGI(TAG, "SD card unmounted");
+        return ret;
     }
 
+    ESP_LOGI(TAG, "SD card unmounted");
     g_card = NULL;
     status_set(STT_SDCARD_STATUS, SDCARD_REMOVED);
     firmware_update_refresh_availability();
+    return ESP_OK;
 }
 
 static void sdcard_task(void* arg)
@@ -104,7 +108,11 @@ static void sdcard_task(void* arg)
             if (ret != ESP_OK)
             {
                 ESP_LOGW(TAG, "SD card removed or not responding");
-                sdcard_unmount();
+                esp_err_t unmount_ret = sdcard_unmount();
+                if (unmount_ret != ESP_OK)
+                {
+                    ESP_LOGE(TAG, "Failed to unmount SD card, will retry: %s", esp_err_to_name(unmount_ret));
+                }
             }
         }
         else
@@ -145,7 +153,12 @@ esp_err_t sdcard_init(void)
 esp_err_t sdcard_remount(void)
 {
     ESP_LOGI(TAG, "Remounting SD card");
-    sdcard_unmount();
+    esp_err_t ret = sdcard_unmount();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Remount aborted, failed to unmount: %s", esp_err_to_name(ret));
+        return ret;
+    }
     return sdcard_mount();
 }
 
