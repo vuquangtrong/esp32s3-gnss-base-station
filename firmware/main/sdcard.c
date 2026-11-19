@@ -7,6 +7,7 @@
 #include "cJSON.h"
 #include "driver/sdmmc_host.h"
 #include "esp_log.h"
+#include "firmware_update.h"
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -66,6 +67,7 @@ static esp_err_t sdcard_mount(void)
     ESP_LOGI(TAG, "Filesystem mounted successfully");
     sdmmc_card_print_info(stdout, g_card);
     status_set(STT_SDCARD_STATUS, SDCARD_MOUNTED);
+    firmware_update_refresh_availability();
     return ESP_OK;
 }
 
@@ -88,6 +90,7 @@ static void sdcard_unmount(void)
 
     g_card = NULL;
     status_set(STT_SDCARD_STATUS, SDCARD_REMOVED);
+    firmware_update_refresh_availability();
 }
 
 static void sdcard_task(void* arg)
@@ -114,6 +117,7 @@ static void sdcard_task(void* arg)
             }
         }
 
+        firmware_update_refresh_availability();
         vTaskDelay(pdMS_TO_TICKS(10000));  // Check every 10 seconds
     }
 }

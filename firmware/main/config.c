@@ -103,6 +103,40 @@ esp_err_t config_init(void)
     return ESP_OK;
 }
 
+esp_err_t config_clear_build_info(void)
+{
+    if (g_nvs_handle == 0)
+    {
+        ESP_LOGE(TAG, "Config is not initialized");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    const config_type_t build_info_keys[] = {CFG_VERSION, CFG_BUILD_TIME, CFG_GIT_COMMIT};
+    const char* build_info_values[] = {VERSION, BUILD_TIME, GIT_COMMIT};
+
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        esp_err_t err = nvs_erase_key(g_nvs_handle, g_configs[build_info_keys[i]].name);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+        {
+            ESP_LOGE(TAG, "Failed to erase %s from NVS: %s", g_configs[build_info_keys[i]].name, esp_err_to_name(err));
+            return err;
+        }
+
+        strlcpy(g_configs[build_info_keys[i]].value, build_info_values[i], CFG_VALUE_LENGTH_MAX);
+    }
+
+    esp_err_t err = nvs_commit(g_nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to commit NVS after clearing build info: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    g_config_changed = true;
+    return ESP_OK;
+}
+
 const char* config_name(config_type_t key)
 {
     if (key >= CFG_MAX)

@@ -13,6 +13,7 @@ set(srcs
     server.c
     ntrip_client.c
     ntrip_server.c
+    firmware_update.c
     main.c
 )
 
@@ -27,6 +28,8 @@ idf_component_register(SRCS ${srcs}
         esp_driver_uart
         esp_http_server
         esp_http_client
+        app_update
+        esp_partition
     WHOLE_ARCHIVE
 )
 

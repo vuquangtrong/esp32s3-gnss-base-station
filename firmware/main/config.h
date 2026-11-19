@@ -46,6 +46,7 @@ typedef struct
 } config_entry_t;
 
 esp_err_t config_init(void);
+esp_err_t config_clear_build_info(void);
 const char* config_name(config_type_t key);
 esp_err_t config_set(config_type_t key, const char* value);
 const char* config_get(config_type_t key);

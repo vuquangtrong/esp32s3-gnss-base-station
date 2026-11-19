@@ -3,6 +3,7 @@
 // #include "esp_timer.h"
 #include "battery.h"
 #include "config.h"
+#include "firmware_update.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "gnss.h"
@@ -65,9 +66,11 @@ void app_main(void)
     ESP_ERROR_CHECK(config_init());
     ESP_ERROR_CHECK(storage_init());
     ESP_ERROR_CHECK(battery_init());
+    ESP_ERROR_CHECK(sdcard_init());
+    firmware_update_init();
+
     ESP_ERROR_CHECK(wifi_init());
     ESP_ERROR_CHECK(uart_init());
-    ESP_ERROR_CHECK(sdcard_init());
 
     gnss_set_mode_rover();
 

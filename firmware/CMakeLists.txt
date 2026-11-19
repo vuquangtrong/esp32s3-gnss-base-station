@@ -13,3 +13,10 @@ project(gnss_station
     VERSION 2.0
     DESCRIPTION "GNSS Station"
 )
+
+add_custom_target(firmware_package
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/pack_firmware.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Packing update.bin for SD-card firmware update"
+    VERBATIM
+)

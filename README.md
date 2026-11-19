@@ -242,3 +242,30 @@ source .venv/bin/activate
 pip install esptool
 esptool -c esp32s3 -p /dev/ttyAMC0 --before default-reset --after hard-reset write-flash 0x0 my_project_full.bin
 ```
+
+### Firmware update over SD card
+
+New devices are flashed with the complete firmware (including the update mechanism) and the final partition table, which reserves an `otadata` partition and an `ota_0` staging slot alongside `factory`, `www` and `data`.
+
+Build the firmware and web assets, then create the SD-card update package:
+
+```sh
+idf.py build
+idf.py firmware_package
+```
+
+This produces `build/update.bin`, a container holding both the application image and the LittleFS `www` image, with CRC32 checks. Copy this single file to the root of a FAT-formatted SD card as `update.bin`:
+
+```sh
+cp build/update.bin /media/<sdcard>/update.bin
+```
+
+Insert the card into the device. In the web UI, the **Firmware Update** section enables the update button only while the SD card is mounted and a valid `update.bin` is present, and while the logger is stopped. Clicking the button:
+
+1. Validates the package, then writes the new app image to the `ota_0` staging slot and reboots.
+2. On the staging boot, before the web filesystem is mounted, writes the new app to `factory` and the new web assets to `www`, verifies both images, then reboots again into the updated `factory` firmware.
+
+If any step fails, the device restores booting from the previous `factory` image and reboots, so it is never left unbootable. Keep the SD card inserted until both reboots complete and the new version appears in the UI footer.
+
+The package can also be built directly with `python3 pack_firmware.py` (use `--app`, `--www`, `--partitions` and `--output` to override paths).
+

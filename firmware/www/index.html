@@ -74,7 +74,7 @@
           <li>
             <kbd><span x-text="gnss_mode_text"></span></kbd>
             <svg
-              x-show="heartbeat"
+              :style="{ visibility: heartbeat ? 'visible' : 'hidden' }"
               width="16"
               height="16"
               viewBox="0 0 16 16"
@@ -665,6 +665,24 @@
           <option value="vi">Tiếng Việt</option>
           <option value="en">English</option>
         </select>
+
+        <div
+          style="grid-column: 2; max-height: 6rem; overflow-y: auto"
+          x-show="firmware_update_message_text"
+        >
+          <small x-text="firmware_update_message_text"></small>
+        </div>
+
+        <button
+          style="grid-column: 2"
+          class="outline secondary"
+          x-show="is_firmware_update_available || is_firmware_updating"
+          @click="firmwareUpdate()"
+          :disabled="!is_sdcard_mounted || !is_firmware_update_available || is_firmware_updating || firmware_update_pending || Number(status.logger_status) === 1"
+          x-text="t('update_firmware')"
+        >
+          Update Firmware
+        </button>
       </div>
     </main>
 
@@ -791,6 +809,16 @@
           confirm_display_rover: "Chuyển hiển thị sang Rover?",
           confirm_display_base: "Chuyển hiển thị sang Base?",
           confirm_display_ppp: "Chuyển hiển thị sang PPP?",
+          firmware_update: "Cập nhật firmware",
+          update_firmware: "Cập nhật firmware",
+          firmware_ready: "Sẵn sàng cập nhật",
+          firmware_not_found: "Không tìm thấy tệp update.bin",
+          firmware_updating: "Đang kiểm tra / ghi firmware",
+          firmware_installing: "Đang cài đặt firmware",
+          firmware_rebooting: "Đang khởi động lại",
+          firmware_update_ok: "Đã bắt đầu cập nhật. Thiết bị sẽ khởi động lại.",
+          confirm_firmware_update: "Cập nhật firmware từ tệp update.bin?",
+          err_firmware_update: "Lỗi khi bắt đầu cập nhật firmware.",
         },
         en: {
           language: "Language",
@@ -894,6 +922,16 @@
           confirm_display_rover: "Switch display to Rover?",
           confirm_display_base: "Switch display to Base?",
           confirm_display_ppp: "Switch display to PPP?",
+          firmware_update: "Firmware Update",
+          update_firmware: "Update Firmware",
+          firmware_ready: "Update available",
+          firmware_not_found: "update.bin not found",
+          firmware_updating: "Checking / writing firmware",
+          firmware_installing: "Installing firmware",
+          firmware_rebooting: "Rebooting",
+          firmware_update_ok: "Update started. The device will reboot.",
+          confirm_firmware_update: "Update firmware from update.bin?",
+          err_firmware_update: "Failed to start firmware update.",
         },
       };
 
@@ -910,6 +948,7 @@
           saved_ntrip_clients: [],
           saved_base_points: [],
           saved_wifi_list: [],
+          firmware_update_pending: false,
 
           t(key, params = {}) {
             let str =
@@ -1100,6 +1139,47 @@
 
           get is_sdcard_mounted() {
             return Number(this.status.sdcard_status) === 1;
+          },
+
+          get is_firmware_update_available() {
+            return Number(this.status.fw_update_available) === 1;
+          },
+
+          get is_firmware_updating() {
+            const state = Number(this.status.fw_update_state);
+            return (state >= 1 && state <= 3) || state === 5;
+          },
+
+          get firmware_update_status_class() {
+            const state = Number(this.status.fw_update_state);
+            if (state === 4) return "text-red";
+            if (state >= 1 && state <= 5) return "text-orange";
+            return this.is_firmware_update_available ? "text-green" : "text-red";
+          },
+
+          get firmware_update_status_text() {
+            const state = Number(this.status.fw_update_state);
+            if (state === 1 || state === 2) return this.t("firmware_updating");
+            if (state === 3) return this.t("firmware_installing");
+            if (state === 5) return this.t("firmware_rebooting");
+            if (state === 4) return this.t("error");
+            return this.is_firmware_update_available
+              ? this.t("firmware_ready")
+              : this.t("firmware_not_found");
+          },
+
+          get firmware_update_progress_text() {
+            const progress = Number(this.status.fw_update_progress);
+            if (isNaN(progress) || progress <= 0 || progress >= 100) return "";
+            return progress + "%";
+          },
+
+          get firmware_update_message_text() {
+            const message = this.status.fw_update_message;
+            if (message) return message;
+            return this.is_firmware_update_available
+              ? ""
+              : this.t("firmware_not_found");
           },
 
           get logger_button_text() {
@@ -1568,6 +1648,24 @@
             } else {
               this.setMessage(this.t("err_wifi_delete"));
             }
+          },
+
+          async firmwareUpdate() {
+            if (this.firmware_update_pending) return;
+            if (!this.confirmAction("confirm_firmware_update")) return;
+            this.firmware_update_pending = true;
+            const res = await this.request("/firmware", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "update" }),
+            });
+            if (!res) {
+              this.firmware_update_pending = false;
+              this.setMessage(this.t("err_firmware_update"));
+              return;
+            }
+            this.setMessage(this.t("firmware_update_ok"));
+            setTimeout(() => location.reload(), 20000);
           },
 
           async init() {

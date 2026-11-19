@@ -9,6 +9,7 @@
 #include "esp_littlefs.h"
 #include "esp_log.h"
 #include "esp_vfs.h"
+#include "firmware_update.h"
 #include "gnss.h"
 #include "logger.h"
 #include "lwip/apps/netbiosns.h"
@@ -868,6 +869,73 @@ static esp_err_t server_post_ntripclient_handler(httpd_req_t* req)
     return ESP_FAIL;
 }
 
+static esp_err_t server_post_firmware_handler(httpd_req_t* req)
+{
+    char body[128] = {0};
+    int32_t received = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (received <= 0)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_FAIL;
+    }
+    body[received] = '\0';
+
+    cJSON* root = cJSON_Parse(body);
+    if (root == NULL)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON* command = cJSON_GetObjectItem(root, "command");
+    if (command == NULL || !cJSON_IsString(command))
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command");
+        return ESP_FAIL;
+    }
+
+    if (strcmp(command->valuestring, "check") == 0)
+    {
+        uint32_t file_size = 0;
+        esp_err_t err = firmware_update_check(&file_size);
+        cJSON_Delete(root);
+
+        cJSON* response = cJSON_CreateObject();
+        cJSON_AddBoolToObject(response, "available", err == ESP_OK);
+        cJSON_AddNumberToObject(response, "state", (int)firmware_update_get_state());
+        cJSON_AddNumberToObject(response, "size", (double)file_size);
+        char* json_str = cJSON_PrintUnformatted(response);
+        cJSON_Delete(response);
+
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, json_str != NULL ? json_str : "{}");
+        if (json_str != NULL)
+        {
+            cJSON_free(json_str);
+        }
+        return ESP_OK;
+    }
+    else if (strcmp(command->valuestring, "update") == 0)
+    {
+        esp_err_t err = firmware_update_start();
+        cJSON_Delete(root);
+        if (err != ESP_OK)
+        {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start firmware update");
+            return ESP_FAIL;
+        }
+
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+        return ESP_OK;
+    }
+
+    cJSON_Delete(root);
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Unknown command");
+    return ESP_FAIL;
+}
+
 esp_err_t server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -916,6 +984,14 @@ esp_err_t server_start(void)
         .user_ctx = NULL,
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(g_httpd_server_handler, &gnss_post_uri));
+
+    httpd_uri_t firmware_post_uri = {
+        .uri = "/firmware",
+        .method = HTTP_POST,
+        .handler = server_post_firmware_handler,
+        .user_ctx = NULL,
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(g_httpd_server_handler, &firmware_post_uri));
 
     httpd_uri_t common_get_uri = {
         .uri = "/*",  //

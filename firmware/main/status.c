@@ -49,6 +49,12 @@ static status_entry_t g_status[STT_MAX] = {
     [STT_NTRIP_SERVER_STATUS] = {.name = "ntrip_server_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
     [STT_NTRIP_SERVER_CLIENT_NUM] = {.name = "ntrip_server_client_num", .type = STT_VALUE_INT, .value = {.i_value = 0}},
     [STT_NTRIP_SENT_BYTES] = {.name = "ntrip_sent_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+
+    // Firmware Update
+    [STT_FW_UPDATE_AVAILABLE] = {.name = "fw_update_available", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    [STT_FW_UPDATE_STATE] = {.name = "fw_update_state", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    [STT_FW_UPDATE_PROGRESS] = {.name = "fw_update_progress", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    [STT_FW_UPDATE_MESSAGE] = {.name = "fw_update_message", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
 };
 
 const char* status_name(status_type_t key)

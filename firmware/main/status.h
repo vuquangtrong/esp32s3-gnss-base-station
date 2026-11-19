@@ -70,6 +70,12 @@ typedef enum
     STT_NTRIP_SERVER_CLIENT_NUM,
     STT_NTRIP_SENT_BYTES,
 
+    // Firmware Update
+    STT_FW_UPDATE_AVAILABLE,
+    STT_FW_UPDATE_STATE,
+    STT_FW_UPDATE_PROGRESS,
+    STT_FW_UPDATE_MESSAGE,
+
     //
     STT_MAX
 } status_type_t;

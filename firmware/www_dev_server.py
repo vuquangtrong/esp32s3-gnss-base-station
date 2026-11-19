@@ -112,6 +112,11 @@ def sysinfo():
                 "ntrip_server_status": ntrip_server_state["status"],
                 "ntrip_server_client_num": 1 if ntrip_server_state["status"] == 2 else 0,
                 "ntrip_sent_bytes": ntrip_server_state["sent_bytes"],
+                # Firmware Update
+                "fw_update_available": 1,
+                "fw_update_state": 0,
+                "fw_update_progress": 0,
+                "fw_update_message": "",
             }
         )
     else:
@@ -370,6 +375,22 @@ def ntripclient_post():
             saved_ntrip_clients.pop(idx)
             return jsonify({"status": "ok"})
         return "Invalid index", 400
+
+    return "Unknown command", 400
+
+
+@app.route("/firmware", methods=["POST"])
+def firmware():
+    data = request.get_json(silent=True)
+    print(f"POST /firmware body: {data}")
+    if data is None:
+        return "Invalid JSON", 400
+
+    command = data.get("command")
+    if command == "check":
+        return jsonify({"available": True, "state": 0, "size": 0})
+    elif command == "update":
+        return jsonify({"status": "ok"})
 
     return "Unknown command", 400
 
