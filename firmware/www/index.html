@@ -216,15 +216,16 @@
             class="grid"
             style="grid-template-columns: 2fr 1fr; align-items: baseline"
           >
-            <select x-model="config.ntrip_mountpoint">
-              <option
-                :value="config.ntrip_mountpoint"
-                x-text="config.ntrip_mountpoint"
-              ></option>
+            <input
+              x-model="config.ntrip_mountpoint"
+              list="ntrip_mountpoint_options"
+              autocomplete="off"
+            />
+            <datalist id="ntrip_mountpoint_options">
               <template x-for="mp in ntrip_mountpoints" :key="mp">
-                <option :value="mp" x-text="mp"></option>
+                <option :value="mp"></option>
               </template>
-            </select>
+            </datalist>
             <button
               :class="'outline'"
               @click="ntripClientQueryMountpoints()"
@@ -446,7 +447,7 @@
           style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center"
         >
           <label x-text="t('host')">Máy chủ</label>
-          <input :value="(status.wifi_ip_addr || '192.168.4.1')" readonly />
+          <input :value="ntrip_server_host_text" readonly />
 
           <label x-text="t('port')">Cổng</label>
           <input value="2101" readonly />
@@ -795,6 +796,8 @@
           err_wifi_delete: "Lỗi khi xóa WiFi.",
           confirm_set_rover: "Chuyển sang chế độ Rover?",
           confirm_set_base: "Chuyển sang chế độ Base?",
+          confirm_base_pos_diff:
+            "Vị trí Base khác nhiều so với vị trí hiện tại (ngang: {h} m, cao: {v} m). Vẫn tiếp tục?",
           confirm_set_ppp: "Chuyển sang chế độ PPP?",
           confirm_ntrip_query: "Tra cứu danh sách mountpoint?",
           confirm_ntrip_save: "Lưu cấu hình NTRIP Client?",
@@ -908,6 +911,8 @@
           err_wifi_delete: "Failed to delete WiFi AP.",
           confirm_set_rover: "Switch to Rover mode?",
           confirm_set_base: "Switch to Base mode?",
+          confirm_base_pos_diff:
+            "Base position differs significantly from current position (horizontal: {h} m, vertical: {v} m). Continue?",
           confirm_set_ppp: "Switch to PPP mode?",
           confirm_ntrip_query: "Query mountpoint list?",
           confirm_ntrip_save: "Save NTRIP Client preset?",
@@ -1090,6 +1095,11 @@
               : this.t("connect");
           },
 
+          get ntrip_server_host_text() {
+            const wifiIp = (this.status.wifi_ip_addr || "").trim();
+            return wifiIp ? `192.168.4.1, ${wifiIp}` : "192.168.4.1";
+          },
+
           get ntrip_server_status_class() {
             const classes = ["text-red", "text-orange", "text-green"];
             return classes[this.status.ntrip_server_status] ?? "text-red";
@@ -1256,9 +1266,45 @@
             if (!this.confirmAction(`confirm_set_${req_mode}`)) return;
             const payload = { mode: req_mode };
             if (req_mode === "base") {
-              payload.lat = Number(this.config.base_lat);
-              payload.lon = Number(this.config.base_lon);
-              payload.height = Number(this.config.base_height);
+              const baseLat = Number(this.config.base_lat);
+              const baseLon = Number(this.config.base_lon);
+              const baseHeight = Number(this.config.base_height);
+              const curLat = Number(this.status.gnss_lat) * 1e-7;
+              const curLon = Number(this.status.gnss_lon) * 1e-7;
+              const curHeight = Number(this.status.gnss_height) / 1000;
+              const hasCurrentPos =
+                Number.isFinite(curLat) &&
+                Number.isFinite(curLon) &&
+                Number.isFinite(curHeight) &&
+                Number(this.status.gnss_height) < 999999;
+
+              if (
+                hasCurrentPos &&
+                Number.isFinite(baseLat) &&
+                Number.isFinite(baseLon) &&
+                Number.isFinite(baseHeight)
+              ) {
+                const dLatM = (baseLat - curLat) * 111320;
+                const avgLatRad = ((baseLat + curLat) / 2) * (Math.PI / 180);
+                const dLonM =
+                  (baseLon - curLon) * 111320 * Math.cos(avgLatRad);
+                const hDistM = Math.sqrt(dLatM * dLatM + dLonM * dLonM);
+                const vDistM = Math.abs(baseHeight - curHeight);
+                if (hDistM > 50 || vDistM > 30) {
+                  if (
+                    !this.confirmAction("confirm_base_pos_diff", {
+                      h: hDistM.toFixed(2),
+                      v: vDistM.toFixed(2),
+                    })
+                  ) {
+                    return;
+                  }
+                }
+              }
+
+              payload.lat = baseLat;
+              payload.lon = baseLon;
+              payload.height = baseHeight;
             }
             if (req_mode === "ppp") {
               payload.min_dur = Number(this.config.ppp_min_dur);
