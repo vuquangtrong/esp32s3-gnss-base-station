@@ -9,7 +9,7 @@ from flask import Flask, jsonify, request, send_from_directory
 app = Flask(__name__)
 
 WWW_DIR = Path(__file__).parent / "www"
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 5000
 
 # Simulated GNSS state

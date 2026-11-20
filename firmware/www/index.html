@@ -62,7 +62,7 @@
     </style>
   </head>
 
-  <body x-data="app">
+  <body x-data="app()" x-init="init()">
     <template x-if="message">
       <div class="container notification" x-text="message"></div>
     </template>
@@ -74,7 +74,7 @@
           <li>
             <kbd><span x-text="gnss_mode_text"></span></kbd>
             <svg
-              :style="{ visibility: heartbeat ? 'visible' : 'hidden' }"
+              :style="heartbeat ? 'visibility: visible' : 'visibility: hidden'"
               width="16"
               height="16"
               viewBox="0 0 16 16"
@@ -940,8 +940,16 @@
         },
       };
 
-      document.addEventListener("alpine:init", () => {
-        Alpine.data("app", () => ({
+      // Browser-compatible helper: replaces the nullish coalescing operator (??)
+      // which is not available in Chrome 60 / Safari 11.
+      function valueOr(value, fallback) {
+        return value === null || typeof value === "undefined" ? fallback : value;
+      }
+
+      // Alpine 2.x has no Alpine.data() helper; x-data="app()" calls this
+      // factory to create the reactive component state.
+      function app() {
+        return {
           lang: localStorage.getItem("app_lang") || "vi",
           config: {}, // fields are defined in config.c
           status: {}, // fields are defined in status.c
@@ -960,8 +968,9 @@
               (i18n[this.lang] && i18n[this.lang][key]) ||
               (i18n["vi"] && i18n["vi"][key]) ||
               key;
-            for (const [k, v] of Object.entries(params)) {
-              str = str.replace(new RegExp(`\\{${k}\\}`, "g"), v);
+            const keys = Object.keys(params);
+            for (let i = 0; i < keys.length; i++) {
+              str = str.replace(new RegExp("\\{" + keys[i] + "\\}", "g"), String(params[keys[i]]));
             }
             return str;
           },
@@ -978,7 +987,7 @@
 
           get gnss_mode_text() {
             const modes = ["ROVER", "BASE", "PPP"];
-            return modes[this.status.gnss_mode] ?? "Unknown";
+            return valueOr(modes[this.status.gnss_mode], "Unknown");
           },
 
           get gnss_fix_class() {
@@ -998,15 +1007,14 @@
               return "---";
             }
 
-            const [, year, month, day, hour, minute, second] = match;
             const t = new Date(
               Date.UTC(
-                Number(year),
-                Number(month) - 1,
-                Number(day),
-                Number(hour),
-                Number(minute),
-                Number(second),
+                Number(match[1]),
+                Number(match[2]) - 1,
+                Number(match[3]),
+                Number(match[4]),
+                Number(match[5]),
+                Number(match[6]),
               ),
             );
 
@@ -1050,12 +1058,12 @@
 
           get wifi_status_class() {
             const classes = ["text-red", "text-orange", "text-green"];
-            return classes[this.status.wifi_status] ?? "text-red";
+            return valueOr(classes[this.status.wifi_status], "text-red");
           },
 
           get wifi_status_text() {
             const keys = ["disconnected", "connecting", "connected"];
-            return this.t(keys[this.status.wifi_status] ?? "disconnected");
+            return this.t(valueOr(keys[this.status.wifi_status], "disconnected"));
           },
 
           get is_wifi_connecting() {
@@ -1064,14 +1072,12 @@
 
           get ntrip_status_class() {
             const classes = ["text-red", "text-orange", "text-green"];
-            return classes[this.status.ntrip_client_status] ?? "text-red";
+            return valueOr(classes[this.status.ntrip_client_status], "text-red");
           },
 
           get ntrip_client_status_text() {
             const keys = ["disconnected", "connecting", "connected"];
-            return this.t(
-              keys[this.status.ntrip_client_status] ?? "disconnected",
-            );
+            return this.t(valueOr(keys[this.status.ntrip_client_status], "disconnected"));
           },
 
           get ntrip_received_bytes_text() {
@@ -1097,17 +1103,17 @@
 
           get ntrip_server_host_text() {
             const wifiIp = (this.status.wifi_ip_addr || "").trim();
-            return wifiIp ? `192.168.4.1, ${wifiIp}` : "192.168.4.1";
+            return wifiIp ? "192.168.4.1, " + wifiIp : "192.168.4.1";
           },
 
           get ntrip_server_status_class() {
             const classes = ["text-red", "text-orange", "text-green"];
-            return classes[this.status.ntrip_server_status] ?? "text-red";
+            return valueOr(classes[this.status.ntrip_server_status], "text-red");
           },
 
           get ntrip_server_status_text() {
             const keys = ["stopped", "listening", "streaming"];
-            return this.t(keys[this.status.ntrip_server_status] ?? "stopped");
+            return this.t(valueOr(keys[this.status.ntrip_server_status], "stopped"));
           },
 
           get ntrip_server_sent_bytes_text() {
@@ -1119,22 +1125,22 @@
 
           get sdcard_status_class() {
             const classes = ["text-red", "text-green", "text-red"];
-            return classes[this.status.sdcard_status] ?? "text-red";
+            return valueOr(classes[this.status.sdcard_status], "text-red");
           },
 
           get sdcard_status_text() {
             const keys = ["removed", "mounted", "error"];
-            return this.t(keys[this.status.sdcard_status] ?? "unknown");
+            return this.t(valueOr(keys[this.status.sdcard_status], "unknown"));
           },
 
           get logger_status_class() {
             const classes = ["text-orange", "text-green", "text-red"];
-            return classes[this.status.logger_status] ?? "text-red";
+            return valueOr(classes[this.status.logger_status], "text-red");
           },
 
           get logger_status_text() {
             const keys = ["stopped", "logging", "error"];
-            return this.t(keys[this.status.logger_status] ?? "unknown");
+            return this.t(valueOr(keys[this.status.logger_status], "unknown"));
           },
 
           get logger_file_text() {
@@ -1200,6 +1206,50 @@
 
           // Methods
 
+          // XMLHttpRequest with an explicit timeout replaces fetch() with
+          // AbortSignal.timeout(), which is unavailable in older browsers.
+          request(url, options = {}) {
+            const method = options.method || "GET";
+            const headers = options.headers || {};
+            const body = typeof options.body === "undefined" ? null : options.body;
+
+            return new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open(method, url, true);
+              xhr.timeout = 5000;
+              xhr.setRequestHeader("Cache-Control", "no-cache");
+
+              const names = Object.keys(headers);
+              for (let i = 0; i < names.length; i++) {
+                xhr.setRequestHeader(names[i], headers[names[i]]);
+              }
+
+              xhr.onreadystatechange = () => {
+                if (xhr.readyState !== 4) return;
+                if (xhr.status < 200 || xhr.status >= 300) {
+                  reject(new Error("HTTP " + xhr.status));
+                  return;
+                }
+                const contentType = xhr.getResponseHeader("Content-Type") || "";
+                if (contentType.indexOf("application/json") === -1 || !xhr.responseText) {
+                  resolve(true);
+                  return;
+                }
+                try {
+                  resolve(JSON.parse(xhr.responseText));
+                } catch (err) {
+                  reject(err);
+                }
+              };
+              xhr.onerror = () => reject(new Error("Network error"));
+              xhr.ontimeout = () => reject(new Error("Timeout"));
+              xhr.send(body);
+            }).catch((err) => {
+              console.error("Request failed (" + url + "):", err);
+              return null;
+            });
+          },
+
           setMessage(msg) {
             this.message = msg;
             if (msg) window.scrollTo(0, 0);
@@ -1219,26 +1269,6 @@
             this.config.base_lat = this.status.gnss_lat * 1e-7;
             this.config.base_lon = this.status.gnss_lon * 1e-7;
             this.config.base_height = this.status.gnss_height / 1000;
-          },
-
-          async request(url, options = {}) {
-            const opts = {
-              ...options,
-              signal: AbortSignal.timeout(5000),
-              cache: "no-store",
-            };
-            try {
-              const res = await fetch(url, opts);
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              return res.headers
-                .get("content-type")
-                ?.includes("application/json")
-                ? await res.json()
-                : true;
-            } catch (err) {
-              console.error(`Fetch failed (${url}):`, err);
-              return null;
-            }
           },
 
           async fetchConfig() {
@@ -1263,7 +1293,7 @@
           },
 
           async setGnssMode(req_mode) {
-            if (!this.confirmAction(`confirm_set_${req_mode}`)) return;
+            if (!this.confirmAction("confirm_set_" + req_mode)) return;
             const payload = { mode: req_mode };
             if (req_mode === "base") {
               const baseLat = Number(this.config.base_lat);
@@ -1365,15 +1395,14 @@
 
               let filename;
               if (match) {
-                const [, year, month, day, hour, minute, second] = match;
                 const t = new Date(
                   Date.UTC(
-                    Number(year),
-                    Number(month) - 1,
-                    Number(day),
-                    Number(hour),
-                    Number(minute),
-                    Number(second),
+                    Number(match[1]),
+                    Number(match[2]) - 1,
+                    Number(match[3]),
+                    Number(match[4]),
+                    Number(match[5]),
+                    Number(match[6]),
                   ),
                 );
 
@@ -1387,14 +1416,13 @@
                 const hh = String(t.getUTCHours()).padStart(2, "0");
                 const min = String(t.getUTCMinutes()).padStart(2, "0");
                 const ss = String(t.getUTCSeconds()).padStart(2, "0");
-                const timestamp = `${yyyy}-${mm}-${dd}_${hh}-${min}-${ss}`;
+                const timestamp = yyyy + "-" + mm + "-" + dd + "_" + hh + "-" + min + "-" + ss;
 
                 // Build filename with optional prefix
-                if (pre && pre.trim() !== "") {
-                  filename = `${pre.trim()}_${timestamp}.ubx`;
-                } else {
-                  filename = `${timestamp}.ubx`;
-                }
+                const prefix = pre ? pre.trim() : "";
+                filename = prefix
+                  ? prefix + "_" + timestamp + ".ubx"
+                  : timestamp + ".ubx";
               } else {
                 this.setMessage("Invalid GNSS time format");
                 return;
@@ -1431,10 +1459,10 @@
                 );
                 if (!tsA || !tsB) return 0;
                 const dateA = new Date(
-                  `${tsA[1]}-${tsA[2]}-${tsA[3]}T${tsA[4]}:${tsA[5]}:${tsA[6]}Z`,
+                  tsA[1] + "-" + tsA[2] + "-" + tsA[3] + "T" + tsA[4] + ":" + tsA[5] + ":" + tsA[6] + "Z",
                 );
                 const dateB = new Date(
-                  `${tsB[1]}-${tsB[2]}-${tsB[3]}T${tsB[4]}:${tsB[5]}:${tsB[6]}Z`,
+                  tsB[1] + "-" + tsB[2] + "-" + tsB[3] + "T" + tsB[4] + ":" + tsB[5] + ":" + tsB[6] + "Z",
                 );
                 return dateB - dateA;
               });
@@ -1534,8 +1562,8 @@
                 server: this.config.ntrip_server,
                 port: Number(this.config.ntrip_port),
                 mountpoint: this.config.ntrip_mountpoint,
-                username: this.config.ntrip_username ?? "",
-                password: this.config.ntrip_password ?? "",
+                username: valueOr(this.config.ntrip_username, ""),
+                password: valueOr(this.config.ntrip_password, ""),
               }),
             });
             if (res) {
@@ -1556,14 +1584,14 @@
             this.config.ntrip_server = item.server;
             this.config.ntrip_port = item.port;
             this.config.ntrip_mountpoint = item.mountpoint;
-            this.config.ntrip_username = item.username ?? "";
-            this.config.ntrip_password = item.password ?? "";
+            this.config.ntrip_username = valueOr(item.username, "");
+            this.config.ntrip_password = valueOr(item.password, "");
           },
 
           async ntripClientDelete(index) {
             const item = this.saved_ntrip_clients[index];
-            const name = item?.mountpoint
-              ? `"${item.mountpoint}"`
+            const name = item && item.mountpoint
+              ? '"' + item.mountpoint + '"'
               : "this preset";
             if (!this.confirmAction("confirm_delete_ntrip", { name })) return;
             const res = await this.request("/ntripclient", {
@@ -1625,7 +1653,7 @@
 
           async baseDelete(index) {
             const pt = this.saved_base_points[index];
-            const name = pt?.name ? `"${pt.name}"` : "this point";
+            const name = pt && pt.name ? '"' + pt.name + '"' : "this point";
             if (!this.confirmAction("confirm_delete_base", { name })) return;
             const res = await this.request("/gnss", {
               method: "POST",
@@ -1662,7 +1690,7 @@
               body: JSON.stringify({
                 command: "save",
                 ssid: this.config.wifi_ssid,
-                password: this.config.wifi_password ?? "",
+                password: valueOr(this.config.wifi_password, ""),
               }),
             });
             if (res) {
@@ -1677,12 +1705,12 @@
             if (!this.confirmAction("confirm_apply_wifi", { ssid: w.ssid }))
               return;
             this.config.wifi_ssid = w.ssid;
-            this.config.wifi_password = w.password ?? "";
+            this.config.wifi_password = valueOr(w.password, "");
           },
 
           async wifiDelete(index) {
             const w = this.saved_wifi_list[index];
-            const name = w?.ssid ? `"${w.ssid}"` : "this network";
+            const name = w && w.ssid ? '"' + w.ssid + '"' : "this network";
             if (!this.confirmAction("confirm_delete_wifi", { name })) return;
             const res = await this.request("/wifi", {
               method: "POST",
@@ -1729,8 +1757,8 @@
             setTimeout(() => this.fetchWifiList(), 3000);
             setInterval(() => this.fetchStatus(), 3000);
           },
-        }));
-      });
+        };
+      }
     </script>
   </body>
 </html>
