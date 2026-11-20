@@ -10,7 +10,7 @@ execute_process(
 )
 
 project(gnss_station
-    VERSION 2.1
+    VERSION 2.2
     DESCRIPTION "GNSS Station"
 )
 

@@ -26,7 +26,19 @@ static const char* TAG = "ntrip_server";
 static TaskHandle_t g_server_task_handle = NULL;
 static volatile bool g_server_running = false;
 static int32_t g_listen_fd = -1;
-static int32_t g_client_fds[NTRIP_SERVER_MAX_CLIENTS] = {-1, -1, -1, -1};
+static int32_t g_client_fds[NTRIP_SERVER_MAX_CLIENTS] = {[0 ... NTRIP_SERVER_MAX_CLIENTS - 1] = -1};
+
+// Pending output for each client. Sending directly from the caster task makes
+// it block on slow clients, which stops UART2 from being drained and corrupts
+// the RTCM3 stream for every other client as well.
+typedef struct
+{
+    uint8_t data[NTRIP_SERVER_CLIENT_TX_BUFFER_SIZE];
+    size_t offset;
+    size_t length;
+} ntrip_client_tx_t;
+
+static ntrip_client_tx_t g_client_tx[NTRIP_SERVER_MAX_CLIENTS];
 
 static int32_t ntrip_server_get_client_count(void)
 {
@@ -56,6 +68,17 @@ static void ntrip_server_update_status(void)
     status_set(STT_NTRIP_SERVER_STATUS, (int)server_status);
 }
 
+static void ntrip_server_reset_client_tx(int32_t slot)
+{
+    if (slot < 0 || slot >= NTRIP_SERVER_MAX_CLIENTS)
+    {
+        return;
+    }
+
+    g_client_tx[slot].offset = 0;
+    g_client_tx[slot].length = 0;
+}
+
 static void ntrip_server_close_client(int32_t slot)
 {
     if (slot < 0 || slot >= NTRIP_SERVER_MAX_CLIENTS || g_client_fds[slot] < 0)
@@ -65,6 +88,7 @@ static void ntrip_server_close_client(int32_t slot)
 
     close(g_client_fds[slot]);
     g_client_fds[slot] = -1;
+    ntrip_server_reset_client_tx(slot);
     ntrip_server_update_status();
 }
 
@@ -77,6 +101,7 @@ static void ntrip_server_clear_clients(void)
             close(g_client_fds[i]);
             g_client_fds[i] = -1;
         }
+        ntrip_server_reset_client_tx(i);
     }
     ntrip_server_update_status();
 }
@@ -136,9 +161,9 @@ static bool ntrip_server_contains_ignore_case(const char* text, const char* patt
     return false;
 }
 
-// A non-blocking send must be retried until every byte is accepted. Dropping the
-// tail of a buffer breaks the RTCM3 CRC of the last message in that buffer.
-static bool ntrip_server_send_all(int32_t client_fd, const uint8_t* data, size_t length)
+// Small HTTP responses are sent while the socket is still blocking, so a
+// bounded SO_SNDTIMEO is enough to keep this from stalling the caster task.
+static bool ntrip_server_send_response(int32_t client_fd, const uint8_t* data, size_t length)
 {
     if (client_fd < 0 || data == NULL || length == 0)
     {
@@ -146,27 +171,108 @@ static bool ntrip_server_send_all(int32_t client_fd, const uint8_t* data, size_t
     }
 
     size_t sent_total = 0;
-    uint32_t retry_count = 0;
-    while (sent_total < length && retry_count < NTRIP_SERVER_SEND_RETRY_MAX)
+    while (sent_total < length)
     {
-        int32_t sent = send(client_fd, data + sent_total, length - sent_total, MSG_DONTWAIT | MSG_NOSIGNAL);
+        int32_t sent = send(client_fd, data + sent_total, length - sent_total, MSG_NOSIGNAL);
         if (sent > 0)
         {
             sent_total += (size_t)sent;
             continue;
         }
-
-        if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
+        if (sent < 0 && errno == EINTR)
         {
-            retry_count++;
-            vTaskDelay(pdMS_TO_TICKS(1));
             continue;
         }
-
         return false;
     }
 
-    return sent_total == length;
+    return true;
+}
+
+// Buffer RTCM3 bytes for a client instead of sending them inline. A slow
+// client must never be allowed to block the task that drains UART2, otherwise
+// all clients receive a stream with missing bytes and invalid CRCs.
+static bool ntrip_server_queue_client_data(int32_t slot, const uint8_t* data, size_t length)
+{
+    if (slot < 0 || slot >= NTRIP_SERVER_MAX_CLIENTS || data == NULL || length == 0)
+    {
+        return false;
+    }
+
+    ntrip_client_tx_t* tx = &g_client_tx[slot];
+
+    // Reclaim consumed space at the front before trying to append.
+    if (tx->offset > 0 && tx->offset + tx->length + length > sizeof(tx->data))
+    {
+        if (tx->length > 0)
+        {
+            memmove(tx->data, tx->data + tx->offset, tx->length);
+        }
+        tx->offset = 0;
+    }
+
+    size_t tail_capacity = sizeof(tx->data) - tx->offset;
+    if (length > tail_capacity || tx->length > tail_capacity - length)
+    {
+        ESP_LOGW(TAG, "Client slot %ld cannot keep up (TX buffer full), closing", (long)slot);
+        ntrip_server_close_client(slot);
+        return false;
+    }
+
+    memcpy(tx->data + tx->offset + tx->length, data, length);
+    tx->length += length;
+    return true;
+}
+
+static void ntrip_server_flush_client(int32_t slot)
+{
+    if (slot < 0 || slot >= NTRIP_SERVER_MAX_CLIENTS || g_client_fds[slot] < 0)
+    {
+        return;
+    }
+
+    ntrip_client_tx_t* tx = &g_client_tx[slot];
+    if (tx->length == 0)
+    {
+        return;
+    }
+
+    int32_t sent = send(g_client_fds[slot], tx->data + tx->offset, tx->length, MSG_DONTWAIT | MSG_NOSIGNAL);
+    if (sent > 0)
+    {
+        tx->offset += (size_t)sent;
+        tx->length -= (size_t)sent;
+        if (tx->length == 0)
+        {
+            tx->offset = 0;
+        }
+        return;
+    }
+
+    if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+    {
+        ESP_LOGW(TAG, "Send error on slot %ld, closing", (long)slot);
+        ntrip_server_close_client(slot);
+    }
+    // EAGAIN/EWOULDBLOCK: keep the data and retry on the next loop iteration.
+}
+
+static void ntrip_server_drain_uart2_events(void)
+{
+    QueueHandle_t queue = uart2_get_event_queue();
+    if (queue == NULL)
+    {
+        return;
+    }
+
+    uart_event_t event = {0};
+    while (xQueueReceive(queue, &event, 0) == pdTRUE)
+    {
+        if (event.type == UART_BUFFER_FULL || event.type == UART_FIFO_OVF)
+        {
+            ESP_LOGW(TAG, "UART2 RX overflow (event %d)", (int)event.type);
+        }
+    }
 }
 
 // Read the whole request header instead of relying on a single recv(), which may
@@ -294,11 +400,11 @@ static void ntrip_server_send_sourcetable(int32_t client_fd, ntrip_version_t ver
 
     if (header_len > 0)
     {
-        ntrip_server_send_all(client_fd, (const uint8_t*)header, (size_t)header_len);
+        ntrip_server_send_response(client_fd, (const uint8_t*)header, (size_t)header_len);
     }
     if (body_len > 0)
     {
-        ntrip_server_send_all(client_fd, (const uint8_t*)body, (size_t)body_len);
+        ntrip_server_send_response(client_fd, (const uint8_t*)body, (size_t)body_len);
     }
     ESP_LOGI(TAG, "Sent sourcetable (lat: %.7f, lon: %.7f, h: %.4f)", lat, lon, height);
 }
@@ -308,7 +414,7 @@ static void ntrip_server_send_stream_header(int32_t client_fd, ntrip_version_t v
     if (version == NTRIP_VERSION_1)
     {
         const char* icy_resp = "ICY 200 OK\r\n";
-        ntrip_server_send_all(client_fd, (const uint8_t*)icy_resp, strlen(icy_resp));
+        ntrip_server_send_response(client_fd, (const uint8_t*)icy_resp, strlen(icy_resp));
         return;
     }
 
@@ -319,7 +425,7 @@ static void ntrip_server_send_stream_header(int32_t client_fd, ntrip_version_t v
         "Content-Type: gnss/data\r\n"
         "Cache-Control: no-store, no-cache, max-age=0\r\n"
         "Pragma: no-cache\r\n\r\n";
-    ntrip_server_send_all(client_fd, (const uint8_t*)ok_resp, strlen(ok_resp));
+    ntrip_server_send_response(client_fd, (const uint8_t*)ok_resp, strlen(ok_resp));
 }
 
 static void ntrip_server_handle_new_connection(int32_t listen_fd)
@@ -336,9 +442,12 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
     ESP_LOGI(TAG, "New connection from %s:%u", client_ip, ntohs(client_addr.sin_port));
 
-    // Set receive timeout to read the initial HTTP request line
+    // Bound the blocking request/response phase. The socket is switched to
+    // non-blocking only after the stream header has been sent.
     struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    struct timeval send_tv = {.tv_sec = 0, .tv_usec = NTRIP_SERVER_RESPONSE_TIMEOUT_MS * 1000};
+    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &send_tv, sizeof(send_tv));
 
     char req_buf[NTRIP_SERVER_REQUEST_BUFFER_SIZE] = {0};
     if (!ntrip_server_recv_request(client_fd, req_buf, sizeof(req_buf)))
@@ -355,7 +464,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     if (sscanf(req_buf, "%15s %63s", method, uri) < 2 || strcmp(method, "GET") != 0)
     {
         const char* err_resp = "HTTP/1.1 400 Bad Request\r\n\r\n";
-        ntrip_server_send_all(client_fd, (const uint8_t*)err_resp, strlen(err_resp));
+        ntrip_server_send_response(client_fd, (const uint8_t*)err_resp, strlen(err_resp));
         close(client_fd);
         return;
     }
@@ -389,7 +498,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
         {
             ESP_LOGW(TAG, "Max clients reached (%d), rejecting %s", NTRIP_SERVER_MAX_CLIENTS, client_ip);
             const char* busy_resp = "HTTP/1.1 503 Service Unavailable\r\n\r\n";
-            ntrip_server_send_all(client_fd, (const uint8_t*)busy_resp, strlen(busy_resp));
+            ntrip_server_send_response(client_fd, (const uint8_t*)busy_resp, strlen(busy_resp));
             close(client_fd);
             return;
         }
@@ -410,7 +519,7 @@ static void ntrip_server_handle_new_connection(int32_t listen_fd)
     // Unknown mountpoint
     ESP_LOGW(TAG, "Unknown mountpoint requested: %s", uri);
     const char* not_found_resp = "HTTP/1.1 404 Not Found\r\n\r\n";
-    ntrip_server_send_all(client_fd, (const uint8_t*)not_found_resp, strlen(not_found_resp));
+    ntrip_server_send_response(client_fd, (const uint8_t*)not_found_resp, strlen(not_found_resp));
     close(client_fd);
 }
 
@@ -513,11 +622,15 @@ static void ntrip_server_task(void* arg)
             }
         }
 
-        // Broadcast RTCM3 data from UART2 to all connected clients when in Base Fixed mode
+        // Broadcast RTCM3 data from UART2 to all connected clients when in Base Fixed mode.
+        // Draining UART2 always takes priority: any stall here drops bytes from the
+        // RTCM3 stream and breaks its CRCs for every client.
         if (status_get_int(STT_GNSS_MODE) == GNSS_BASE)
         {
+            ntrip_server_drain_uart2_events();
+
             size_t buffered_len = 0;
-            int32_t total_sent_this_tick = 0;
+            int32_t total_queued_this_tick = 0;
             uart_get_buffered_data_len(UART2_PORT, &buffered_len);
 
             while (buffered_len > 0 && g_server_running)
@@ -529,31 +642,28 @@ static void ntrip_server_task(void* arg)
                     break;
                 }
 
-                int32_t total_sent_this_chunk = 0;
                 for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
                 {
-                    if (g_client_fds[i] >= 0)
+                    if (g_client_fds[i] >= 0 && ntrip_server_queue_client_data(i, rx_buf, (size_t)bytes_read))
                     {
-                        if (ntrip_server_send_all(g_client_fds[i], rx_buf, (size_t)bytes_read))
-                        {
-                            total_sent_this_chunk += bytes_read;
-                        }
-                        else
-                        {
-                            ESP_LOGW(TAG, "Send error on slot %ld, closing", (long)i);
-                            ntrip_server_close_client(i);
-                        }
+                        ntrip_server_flush_client(i);
+                        total_queued_this_tick += bytes_read;
                     }
                 }
 
-                total_sent_this_tick += total_sent_this_chunk;
                 uart_get_buffered_data_len(UART2_PORT, &buffered_len);
             }
 
-            // Publish once per loop instead of once per UART chunk.
-            if (total_sent_this_tick > 0)
+            // A socket that was not writable last tick may be writable now.
+            for (int32_t i = 0; i < NTRIP_SERVER_MAX_CLIENTS; i++)
             {
-                status_set(STT_NTRIP_SENT_BYTES, status_get_int(STT_NTRIP_SENT_BYTES) + total_sent_this_tick);
+                ntrip_server_flush_client(i);
+            }
+
+            // Publish once per loop instead of once per UART chunk.
+            if (total_queued_this_tick > 0)
+            {
+                status_set(STT_NTRIP_SENT_BYTES, status_get_int(STT_NTRIP_SENT_BYTES) + total_queued_this_tick);
             }
         }
 

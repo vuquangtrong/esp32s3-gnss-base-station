@@ -21,7 +21,7 @@
 #define UART2_PORT             UART_NUM_2
 #define UART2_TX_PIN           GPIO_NUM_38
 #define UART2_RX_PIN           GPIO_NUM_39
-#define UART2_RX_BUFFER_SIZE   2048
+#define UART2_RX_BUFFER_SIZE   8192
 #define UART2_EVENT_QUEUE_SIZE 10
 
 esp_err_t uart_init(void);
