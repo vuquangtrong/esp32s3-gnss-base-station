@@ -125,7 +125,7 @@ static const esp_partition_t* firmware_update_find_www_partition(void)
     return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, WWW_PARTITION_LABEL);
 }
 
-static esp_err_t firmware_update_read_header(FILE* file, firmware_package_header_t* header)
+static esp_err_t firmware_update_read_header(FILE* file, firmware_update_header_t* header)
 {
     if (file == NULL || header == NULL)
     {
@@ -142,12 +142,12 @@ static esp_err_t firmware_update_read_header(FILE* file, firmware_package_header
         return ESP_FAIL;
     }
 
-    if (memcmp(header->magic, FIRMWARE_PACKAGE_MAGIC, sizeof(header->magic)) != 0)
+    if (memcmp(header->magic, FIRMWARE_UPDATE_MAGIC, sizeof(header->magic)) != 0)
     {
         ESP_LOGE(TAG, "Invalid package magic");
         return ESP_ERR_INVALID_ARG;
     }
-    if (header->format_version != FIRMWARE_PACKAGE_VERSION)
+    if (header->format_version != FIRMWARE_UPDATE_VERSION)
     {
         ESP_LOGE(TAG, "Unsupported package version: %u", header->format_version);
         return ESP_ERR_INVALID_ARG;
@@ -175,8 +175,7 @@ static esp_err_t firmware_update_read_header(FILE* file, firmware_package_header
 
     uint64_t app_end = (uint64_t)header->app_offset + header->app_size;
     uint64_t www_end = (uint64_t)header->www_offset + header->www_size;
-    if (header->app_offset < FIRMWARE_PACKAGE_HEADER_SIZE || header->www_offset < app_end ||
-        app_end > header->total_size || www_end > header->total_size)
+    if (header->app_offset < FIRMWARE_UPDATE_HEADER_SIZE || header->www_offset < app_end || app_end > header->total_size || www_end > header->total_size)
     {
         ESP_LOGE(TAG, "Invalid package offsets or total size");
         return ESP_ERR_INVALID_SIZE;
@@ -205,7 +204,7 @@ void firmware_update_refresh_availability(void)
         char filepath[128] = {0};
         snprintf(filepath, sizeof(filepath), "%s/%s", SDCARD_MOUNT_POINT, FIRMWARE_UPDATE_FILENAME);
         struct stat st = {0};
-        if (stat(filepath, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > (off_t)FIRMWARE_PACKAGE_HEADER_SIZE)
+        if (stat(filepath, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > (off_t)FIRMWARE_UPDATE_HEADER_SIZE)
         {
             available = true;
         }
@@ -231,7 +230,7 @@ esp_err_t firmware_update_check(uint32_t* file_size)
         return ESP_ERR_NOT_FOUND;
     }
 
-    firmware_package_header_t header = {0};
+    firmware_update_header_t header = {0};
     esp_err_t err = firmware_update_read_header(file, &header);
     if (err == ESP_OK && file_size != NULL)
     {
@@ -269,7 +268,7 @@ esp_err_t firmware_update_start(void)
         return ESP_ERR_NOT_FOUND;
     }
 
-    firmware_package_header_t header = {0};
+    firmware_update_header_t header = {0};
     esp_err_t err = firmware_update_read_header(file, &header);
     fclose(file);
     if (err != ESP_OK)
@@ -302,7 +301,7 @@ static void firmware_update_stage_task(void* arg)
         return;
     }
 
-    firmware_package_header_t header = {0};
+    firmware_update_header_t header = {0};
     if (firmware_update_read_header(file, &header) != ESP_OK)
     {
         fclose(file);
@@ -409,8 +408,9 @@ static void firmware_update_stage_task(void* arg)
     esp_restart();
 }
 
-static esp_err_t firmware_update_write_partition(const esp_partition_t* partition, FILE* file, uint32_t offset,
-                                                 uint32_t size, uint32_t progress_base, uint32_t progress_range)
+static esp_err_t firmware_update_write_partition(
+    const esp_partition_t* partition, FILE* file, uint32_t offset, uint32_t size, uint32_t progress_base, uint32_t progress_range
+)
 {
     uint32_t erase_size = (size + partition->erase_size - 1) & ~(partition->erase_size - 1);
     esp_err_t err = esp_partition_erase_range(partition, 0, erase_size);
@@ -494,7 +494,7 @@ static void firmware_update_install_task(void* arg)
         return;
     }
 
-    firmware_package_header_t header = {0};
+    firmware_update_header_t header = {0};
     if (firmware_update_read_header(file, &header) != ESP_OK)
     {
         fclose(file);

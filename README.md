@@ -251,7 +251,7 @@ Build the firmware and web assets, then create the SD-card update package:
 
 ```sh
 idf.py build
-idf.py firmware_package
+idf.py make_update
 ```
 
 This produces `build/update.bin`, a container holding both the application image and the LittleFS `www` image, with CRC32 checks. Copy this single file to the root of a FAT-formatted SD card as `update.bin`:
@@ -267,4 +267,4 @@ Insert the card into the device. In the web UI, the **Firmware Update** section 
 
 If any step fails, the device restores booting from the previous `factory` image and reboots, so it is never left unbootable. Keep the SD card inserted until both reboots complete and the new version appears in the UI footer.
 
-The package can also be built directly with `python3 pack_firmware.py` (use `--app`, `--www`, `--partitions` and `--output` to override paths).
+The package can also be built directly with `python3 make_update.py` (use `--app`, `--www`, `--partitions` and `--output` to override paths).

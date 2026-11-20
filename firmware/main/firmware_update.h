@@ -7,11 +7,11 @@
 
 #include "esp_err.h"
 
-#define FIRMWARE_UPDATE_FILENAME      "update.bin"
-#define FIRMWARE_PACKAGE_MAGIC        "GNSSFWPK"
-#define FIRMWARE_PACKAGE_VERSION      1
-#define FIRMWARE_PACKAGE_HEADER_SIZE  4096
-#define FIRMWARE_UPDATE_BUFFER_SIZE   (16 * 1024)
+#define FIRMWARE_UPDATE_FILENAME    "update.bin"
+#define FIRMWARE_UPDATE_MAGIC       "GNSSFWPK"
+#define FIRMWARE_UPDATE_VERSION     1
+#define FIRMWARE_UPDATE_HEADER_SIZE 4096
+#define FIRMWARE_UPDATE_BUFFER_SIZE (16 * 1024)
 
 typedef enum
 {
@@ -34,7 +34,7 @@ typedef struct
     uint32_t www_offset;
     uint32_t www_size;
     uint32_t www_crc32;
-} firmware_package_header_t;
+} firmware_update_header_t;
 
 void firmware_update_init(void);
 void firmware_update_refresh_availability(void);
