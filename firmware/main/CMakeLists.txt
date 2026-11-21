@@ -1,4 +1,5 @@
 set(srcs
+    config.c
     main.c
 )
 
@@ -6,6 +7,7 @@ idf_component_register(SRCS ${srcs}
     INCLUDE_DIRS
         "."
     REQUIRES
+        nvs_flash
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
