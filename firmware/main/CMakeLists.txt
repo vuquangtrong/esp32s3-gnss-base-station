@@ -1,6 +1,7 @@
 set(srcs
     config.c
     status.c
+    storage.c
     main.c
 )
 
@@ -9,6 +10,7 @@ idf_component_register(SRCS ${srcs}
         "."
     REQUIRES
         nvs_flash
+        vfs
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
