@@ -2,6 +2,7 @@
 
 #include "build_info.h"
 #include "config.h"
+#include "status.h"
 
 void app_main(void)
 {
@@ -9,4 +10,5 @@ void app_main(void)
 
     ESP_ERROR_CHECK(config_init());
     printf("%s\n", config_get_all());
+    printf("%s\n", status_get_all());
 }

@@ -1,5 +1,6 @@
 set(srcs
     config.c
+    status.c
     main.c
 )
 
