@@ -1,0 +1,8 @@
+#ifndef BUILD_INFO_H
+#define BUILD_INFO_H
+
+#define APP_VERSION "@APP_VERSION@"
+#define GIT_COMMIT  "@GIT_COMMIT@"
+#define BUILD_TIME  "@BUILD_TIME@"
+
+#endif  // BUILD_INFO_H
