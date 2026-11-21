@@ -2,6 +2,7 @@
 
 #include "build_info.h"
 #include "config.h"
+#include "fw_update.h"
 #include "sdcard.h"
 #include "status.h"
 #include "storage.h"
@@ -13,6 +14,8 @@ void app_main(void)
     ESP_ERROR_CHECK(config_init());
     ESP_ERROR_CHECK(storage_init());
     ESP_ERROR_CHECK(sdcard_init());
+
+    printf("app=%s, www=%s\n", fw_update_get_active_app(), fw_update_get_active_www());
     printf("%s\n", config_get_all());
     printf("%s\n", status_get_all());
 }

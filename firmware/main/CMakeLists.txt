@@ -3,6 +3,7 @@ set(srcs
     status.c
     storage.c
     sdcard.c
+    fw_update.c
     main.c
 )
 
@@ -13,6 +14,8 @@ idf_component_register(SRCS ${srcs}
         nvs_flash
         vfs
         fatfs
+        app_update
+        mbedtls
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
@@ -39,4 +42,11 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
 
     add_dependencies(${COMPONENT_LIB} generate_build_info)
     target_include_directories(${COMPONENT_LIB} PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
+
+set(WEB_SRC_DIR "${CMAKE_SOURCE_DIR}/www")
+if(EXISTS ${WEB_SRC_DIR})
+    littlefs_create_partition_image(www_0 ${WEB_SRC_DIR} FLASH_IN_PROJECT)
+else()
+    message(FATAL_ERROR "${WEB_SRC_DIR} doesn't exist.")
 endif()

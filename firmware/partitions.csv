@@ -2,7 +2,10 @@
 # partition table starts at offset 0x8000 and occupies an entire flash sector length 0x1000 (4KB)
 # Name,     Type,   SubType,    Offset,     Size,   Flags
 nvs,        data,   nvs,        0x9000,     128K,
+otadata,    data,   ota,        ,           8K,
 phy_init,   data,   phy,        ,           8K,
-factory,    app,    factory,    0x100000,   4M,
-www,        data,   littlefs,   ,           4M,
-data,       data,   littlefs,   ,           4M
+ota_0,      app,    ota_0,      0x100000,   3M,
+ota_1,      app,    ota_1,      ,           3M,
+www_0,      data,   littlefs,   ,           3M,
+www_1,      data,   littlefs,   ,           3M,
+data,       data,   littlefs,   ,           3M

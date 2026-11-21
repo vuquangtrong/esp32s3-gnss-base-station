@@ -209,7 +209,7 @@ idf.py monitor -p /dev/ttyUSB0
 ```
 
 
-### Create full image
+### Flash full image
 
 ```sh
 idf.py merge-bin -o full.bin -f raw
@@ -229,3 +229,23 @@ source .venv/bin/activate
 pip install esptool
 esptool -c esp32s3 -p /dev/ttyUSB0 --before default-reset --after hard-reset write-flash 0x0 full.bin
 ```
+
+### Update from SD Card
+
+After new devices are flashed with the complete firmware (including the update mechanism) and the final partition table,
+they are able to be updated from `update.bin` file on SD Card.
+
+Activate ESP-IDP devlopment environment:
+
+```sh
+source ~/.espressif/tools/activate_idf_v6.1.1.sh
+```
+
+then run script to create `build/full.bin` and `build/update.bin`:
+
+```sh
+python3 make_firmware.py
+```
+
+Copy the `build/update.bin` file to the root of a FAT-formatted SD card as `update.bin`.
+Insert the card into the device. Press **Firmware Update** on Web UI to start the update.

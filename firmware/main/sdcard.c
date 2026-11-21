@@ -12,6 +12,7 @@
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "fw_update.h"
 #include "sdmmc_cmd.h"
 #include "status.h"
 
@@ -64,6 +65,7 @@ static esp_err_t sdcard_mount(void)
     ESP_LOGI(TAG, "Filesystem mounted successfully");
     sdmmc_card_print_info(stdout, g_card);
     status_set_int(STT_SDCARD_STATUS, SDCARD_MOUNTED);
+    fw_update_check();
     return ESP_OK;
 }
 
@@ -84,6 +86,7 @@ static esp_err_t sdcard_unmount(void)
     ESP_LOGI(TAG, "SD card unmounted");
     g_card = NULL;
     status_set_int(STT_SDCARD_STATUS, SDCARD_REMOVED);
+    status_set_int(STT_FW_UPDATE_AVAILABLE, 0);
     return ESP_OK;
 }
 
