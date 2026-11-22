@@ -8,6 +8,7 @@ set(srcs
     uart.c
     battery.c
     factory_test.c
+    wifi.c
     main.c
 )
 
@@ -23,6 +24,7 @@ idf_component_register(SRCS ${srcs}
         esp_driver_gpio
         esp_driver_uart
         esp_adc
+        esp_wifi
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
