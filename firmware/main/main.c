@@ -6,6 +6,7 @@
 #include "sdcard.h"
 #include "status.h"
 #include "storage.h"
+#include "uart.h"
 
 void app_main(void)
 {
@@ -14,6 +15,7 @@ void app_main(void)
     ESP_ERROR_CHECK(config_init());
     ESP_ERROR_CHECK(storage_init());
     ESP_ERROR_CHECK(sdcard_init());
+    ESP_ERROR_CHECK(uart_init());
 
     printf("app=%s, www=%s\n", fw_update_get_active_app(), fw_update_get_active_www());
     printf("%s\n", config_get_all());

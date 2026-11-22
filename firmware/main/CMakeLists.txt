@@ -4,6 +4,8 @@ set(srcs
     storage.c
     sdcard.c
     fw_update.c
+    ublox.c
+    uart.c
     main.c
 )
 
@@ -16,6 +18,8 @@ idf_component_register(SRCS ${srcs}
         fatfs
         app_update
         mbedtls
+        esp_driver_gpio
+        esp_driver_uart
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
