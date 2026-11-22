@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "battery.h"
 #include "build_info.h"
 #include "config.h"
 #include "fw_update.h"
@@ -16,6 +17,7 @@ void app_main(void)
     ESP_ERROR_CHECK(storage_init());
     ESP_ERROR_CHECK(sdcard_init());
     ESP_ERROR_CHECK(uart_init());
+    ESP_ERROR_CHECK(battery_init());
 
     printf("app=%s, www=%s\n", fw_update_get_active_app(), fw_update_get_active_www());
     printf("%s\n", config_get_all());

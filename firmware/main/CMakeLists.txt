@@ -6,6 +6,7 @@ set(srcs
     fw_update.c
     ublox.c
     uart.c
+    battery.c
     main.c
 )
 
@@ -20,6 +21,7 @@ idf_component_register(SRCS ${srcs}
         mbedtls
         esp_driver_gpio
         esp_driver_uart
+        esp_adc
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
