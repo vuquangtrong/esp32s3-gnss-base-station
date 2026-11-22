@@ -7,6 +7,7 @@ set(srcs
     ublox.c
     uart.c
     battery.c
+    factory_test.c
     main.c
 )
 
@@ -56,3 +57,7 @@ if(EXISTS ${WEB_SRC_DIR})
 else()
     message(FATAL_ERROR "${WEB_SRC_DIR} doesn't exist.")
 endif()
+
+target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    FACTORY_TEST=0
+)

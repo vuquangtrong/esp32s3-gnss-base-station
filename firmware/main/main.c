@@ -3,6 +3,7 @@
 #include "battery.h"
 #include "build_info.h"
 #include "config.h"
+#include "factory_test.h"
 #include "fw_update.h"
 #include "sdcard.h"
 #include "status.h"
@@ -22,4 +23,9 @@ void app_main(void)
     printf("app=%s, www=%s\n", fw_update_get_active_app(), fw_update_get_active_www());
     printf("%s\n", config_get_all());
     printf("%s\n", status_get_all());
+
+#if FACTORY_TEST
+    ESP_ERROR_CHECK(factory_test_uart());
+    return;
+#endif
 }
