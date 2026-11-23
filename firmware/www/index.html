@@ -122,7 +122,7 @@
       </ul>
       <ul>
         <li>
-          <strong x-text="gnss.fix_status"></strong>
+          <strong x-text="gnss.fix_status" :class="gnss_fix_status_class(gnss.fix_status)"></strong>
         </li>
         <li>
           <strong x-text="gnss.sat_num"></strong>
@@ -175,7 +175,7 @@
     <details name="card_rover_settings" open x-show="displayMode === 'rover'">
       <summary role="button" class="outline contrast">
         <strong>Cài đặt Rover</strong>
-        <button class="outline" @click="setGnssMode('rover')">Kích hoạt chế độ Rover</button>
+        <button class="outline" @click.stop="setGnssMode('rover')">Kích hoạt chế độ Rover</button>
       </summary>
     </details>
 
@@ -183,7 +183,9 @@
     <details name="card_ntrip_client" open x-show="displayMode === 'rover'">
       <summary role="button" class="outline contrast">
         <strong>NTRIP Client</strong>
-        <span x-text="conn_status_text(status.ntrip_client_status)"></span>
+        <span x-text="conn_status_text(status.ntrip_client_status)"
+          :class="conn_status_class(status.ntrip_client_status)">
+        </span>
         <span x-text="status.ntrip_received_bytes"></span>
       </summary>
 
@@ -263,7 +265,7 @@
     <details name="card_base_settings" open x-show="displayMode === 'base'">
       <summary role="button" class="outline contrast">
         <strong>Cài đặt Base</strong>
-        <button class="outline" @click="setGnssMode('base')">Kích hoạt chế độ Base</button>
+        <button class="outline" @click.stop="setGnssMode('base')">Kích hoạt chế độ Base</button>
       </summary>
 
       <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: baseline">
@@ -327,7 +329,9 @@
     <details name="card_ntrip_server" open x-show="displayMode === 'base'">
       <summary role="button" class="outline contrast">
         <strong>NTRIP Caster</strong>
-        <span x-text="conn_status_text(status.ntrip_server_status)"></span>
+        <span x-text="conn_status_text(status.ntrip_server_status)"
+          :class="conn_status_class(status.ntrip_server_status)">
+        </span>
         <span x-text="status.ntrip_conn_count"></span>
         <span x-text="status.ntrip_sent_bytes"></span>
       </summary>
@@ -354,7 +358,7 @@
     <details name="card_ppp_settings" open x-show="displayMode === 'ppp'">
       <summary role="button" class="outline contrast">
         <strong>Cài đặt PPP</strong>
-        <button class="outline" @click="setGnssMode('ppp')">Kích hoạt chế độ PPP</button>
+        <button class="outline" @click.stop="setGnssMode('ppp')">Kích hoạt chế độ PPP</button>
       </summary>
 
       <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: baseline">
@@ -376,7 +380,8 @@
     <details name="card_logger" open x-show="displayMode === 'ppp'">
       <summary role="button" class="outline contrast">
         <strong>Ghi dữ liệu</strong>
-        <span x-text="logger_status_text(status.logger_status)"></span>
+        <span x-text="logger_status_text(status.logger_status)" :class="logger_status_class(status.logger_status)">
+        </span>
       </summary>
 
       <div class="grid" style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center">
@@ -399,7 +404,7 @@
     <details name="card_wifi" open>
       <summary role="button" class="outline contrast">
         <strong>WiFi</strong>
-        <span x-text="conn_status_text(status.wifi_status)"></span>
+        <span x-text="conn_status_text(status.wifi_status)" :class="conn_status_class(status.wifi_status)"></span>
         <span x-text="status.wifi_ip_addr"></span>
       </summary>
 
@@ -453,7 +458,8 @@
     <details name="card_sdcard" open>
       <summary role="button" class="outline contrast">
         <strong>Thẻ nhớ SD</strong>
-        <span x-text="sdcard_status_text(status.sdcard_status)"></span>
+        <span x-text="sdcard_status_text(status.sdcard_status)" :class="sdcard_status_class(status.sdcard_status)">
+        </span>
       </summary>
     </details>
 
@@ -466,7 +472,8 @@
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: baseline">
         <span></span>
-        <button class="outline" @click="updateFirmware()">Cập nhật phần mềm</button>
+        <button class="outline" x-show="status.fw_update_available" :disabled="status.fw_update_status !== 0"
+          @click="updateFirmware()" x-text="fw_update_status_text(status.fw_update_status)"></button>
       </div>
     </details>
   </main>
@@ -516,7 +523,7 @@
           onConfirm: null
         },
         gnss: {
-          fix_status: "No Fix",
+          fix_status: "NO FIX",
           sat_num: 0,
           date_time: "",
           latitude: "",
@@ -602,11 +609,63 @@
           this.displayMode = mode;
         },
 
+        /* Switch GNSS operating mode (rover, base, ppp) */
+        setGnssMode: function (mode) {
+          var self = this;
+          if (mode === "rover") {
+            if (this.status.gnss_mode === 0) return;
+            this.askConfirm("Kích hoạt chế độ Rover?", function () {
+              self.httpRequest("POST", "/api/gnss", {
+                mode: "rover"
+              });
+            });
+          } else if (mode === "base") {
+            if (this.status.gnss_mode === 1) return;
+            var lat = parseFloat(this.config.base_lat);
+            var lon = parseFloat(this.config.base_lon);
+            var height = parseFloat(this.config.base_height);
+            if (isNaN(lat) || lat < -90 || lat > 90 ||
+              isNaN(lon) || lon < -180 || lon > 180 ||
+              isNaN(height) || Math.abs(height) > 100000) {
+              return;
+            }
+            this.askConfirm("Kích hoạt chế độ Base?", function () {
+              self.httpRequest("POST", "/api/gnss", {
+                mode: "base",
+                lat: "" + self.config.base_lat,
+                lon: "" + self.config.base_lon,
+                height: "" + self.config.base_height
+              });
+            });
+          } else if (mode === "ppp") {
+            if (this.status.gnss_mode === 2) return;
+            var minDur = parseInt(this.config.ppp_min_dur, 10);
+            var accLimit = parseInt(this.config.ppp_acc_limit, 10);
+            if (isNaN(minDur) || minDur <= 0 || isNaN(accLimit) || accLimit <= 0) {
+              return;
+            }
+            this.askConfirm("Kích hoạt chế độ PPP?", function () {
+              self.httpRequest("POST", "/api/gnss", {
+                mode: "ppp",
+                min_dur: "" + minDur,
+                acc_limit: "" + accLimit
+              });
+            });
+          }
+        },
+
         /* Status code to human-readable text helpers */
         gnss_mode_text: function (mode) {
           if (mode === 0) return "ROVER";
           if (mode === 1) return "BASE";
           if (mode === 2) return "PPP";
+          return "";
+        },
+
+        gnss_fix_status_class: function (st) {
+          if (st === "RTK FIXED" || st === "TIME FIX") return "text-green";
+          if (st === "NO FIX") return "text-red";
+          if (st) return "text-orange";
           return "";
         },
 
@@ -617,10 +676,24 @@
           return "";
         },
 
+        conn_status_class: function (st) {
+          if (st === 0) return "text-red";
+          if (st === 1) return "text-orange";
+          if (st === 2) return "text-green";
+          return "";
+        },
+
         sdcard_status_text: function (st) {
           if (st === 0) return "Không có thẻ";
           if (st === 1) return "Đã gắn thẻ";
           if (st === 2) return "Lỗi thẻ nhớ";
+          return "";
+        },
+
+        sdcard_status_class: function (st) {
+          if (st === 0) return "text-orange";
+          if (st === 1) return "text-green";
+          if (st === 2) return "text-red";
           return "";
         },
 
@@ -631,13 +704,27 @@
           return "";
         },
 
+        logger_status_class: function (st) {
+          if (st === 0) return "text-orange";
+          if (st === 1) return "text-green";
+          if (st === 2) return "text-red";
+          return "";
+        },
+
         fw_update_status_text: function (st) {
-          if (st === 0) return "Sẵn sàng";
+          if (st === 0) return "Cập nhật phần mềm";
           if (st === 1) return "Đang kiểm tra";
           if (st === 2) return "Đang nạp App";
           if (st === 3) return "Đang nạp Web";
           if (st === 4) return "Thành công";
           if (st === 5) return "Thất bại";
+          return "";
+        },
+
+        fw_update_status_class: function (st) {
+          if (st === 1 || st === 2 || st === 3) return "text-orange";
+          if (st === 4) return "text-green";
+          if (st === 5) return "text-red";
           return "";
         },
 
@@ -672,20 +759,20 @@
           var hAcc = dv.getUint32(40, true) / 1000.0;
           var vAcc = dv.getUint32(44, true) / 1000.0;
 
-          var fixText = "No Fix";
+          var fixText = "NO FIX";
           if (gnssFixOK) {
             if (carrSoln === 2) {
-              fixText = "RTK Fixed";
+              fixText = "RTK FIXED";
             } else if (carrSoln === 1) {
-              fixText = "RTK Float";
+              fixText = "RTK FLOAT";
             } else if (diffSoln) {
               fixText = "DGNSS";
             } else if (fixType === 3) {
-              fixText = "3D Fix";
+              fixText = "3D FIX";
             } else if (fixType === 2) {
-              fixText = "2D Fix";
+              fixText = "2D FiX";
             } else if (fixType === 5) {
-              fixText = "Time Only";
+              fixText = "TIME FIX";
             }
           }
 
@@ -964,6 +1051,15 @@
           this.config.base_lat = this.gnss.latitude;
           this.config.base_lon = this.gnss.longitude;
           this.config.base_height = this.gnss.height;
+        },
+
+        /* Trigger firmware update from SD card with confirmation prompt */
+        updateFirmware: function () {
+          var self = this;
+          if (!this.status.fw_update_available || this.status.fw_update_status !== 0) return;
+          this.askConfirm("Cập nhật phần mềm?", function () {
+            self.httpRequest("POST", "/api/firmware", null);
+          });
         },
 
         /* Connect to WebSocket for real-time JSON status and binary UBX stream */

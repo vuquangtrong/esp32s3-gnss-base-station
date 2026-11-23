@@ -177,16 +177,17 @@ void fw_update_check(void)
 {
     struct stat st = {0};
     bool found = (stat(FW_UPDATE_FILEPATH, &st) == 0) && S_ISREG(st.st_mode);
-    status_set_int(STT_FW_UPDATE_AVAILABLE, found ? 1 : 0);
-
     if (found)
     {
+        status_set_int(STT_FW_UPDATE_AVAILABLE, 1);
         ESP_LOGI(TAG, "Found %s (%ld bytes)", FW_UPDATE_FILEPATH, (long)st.st_size);
     }
     else
     {
+        status_set_int(STT_FW_UPDATE_AVAILABLE, 0);
         ESP_LOGI(TAG, "%s not found", FW_UPDATE_FILEPATH);
     }
+    status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_IDLE);
 }
 
 static esp_err_t fw_update_fail(FILE* file, esp_err_t err, const char* format, ...)
@@ -206,7 +207,7 @@ static esp_err_t fw_update_fail(FILE* file, esp_err_t err, const char* format, .
     return err;
 }
 
-esp_err_t fw_update_start(void)
+static esp_err_t fw_update_run(void)
 {
     status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_VERIFYING);
 
@@ -305,6 +306,28 @@ esp_err_t fw_update_start(void)
     sdcard_file_close(file);
     vTaskDelay(pdMS_TO_TICKS(500));
     esp_restart();
+
+    return ESP_OK;
+}
+
+static void fw_update_task(void* arg)
+{
+    fw_update_run();
+    vTaskDelete(NULL);
+}
+
+esp_err_t fw_update_start(void)
+{
+    if (status_get_int(STT_FW_UPDATE_AVAILABLE) == 0 || status_get_int(STT_FW_UPDATE_STATUS) != FW_UPDATE_IDLE)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (xTaskCreate(fw_update_task, "fw_update", 8192, NULL, 5, NULL) != pdPASS)
+    {
+        ESP_LOGE(TAG, "Failed to create firmware update task");
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }

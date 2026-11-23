@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/unistd.h>
@@ -18,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "fw_update.h"
+#include "gnss.h"
 #include "status.h"
 #include "storage.h"
 #include "uart.h"
@@ -162,6 +164,11 @@ static esp_err_t server_handle_wifi_post(httpd_req_t* req)
         if (strcmp(cmd, "connect") == 0)
         {
             err = wifi_sta_connect(ssid, password);
+            if (err == ESP_OK)
+            {
+                config_set(CFG_WIFI_SSID, ssid);
+                config_set(CFG_WIFI_PASSWORD, password);
+            }
         }
         else
         {
@@ -430,6 +437,147 @@ static esp_err_t server_handle_base_post(httpd_req_t* req)
     {
         ESP_LOGW(TAG, "Base POST command failed (%s)", esp_err_to_name(err));
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Command failed");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+}
+
+static esp_err_t server_handle_gnss_post(httpd_req_t* req)
+{
+    if (req == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
+        return ESP_FAIL;
+    }
+
+    int received = httpd_req_recv(req, g_req_buf, req->content_len);
+    if (received <= 0 || (size_t)received != req->content_len)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
+        return ESP_FAIL;
+    }
+    g_req_buf[received] = '\0';
+
+    cJSON* root = cJSON_Parse(g_req_buf);
+    if (!cJSON_IsObject(root))
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    const cJSON* mode_item = cJSON_GetObjectItem(root, "mode");
+    if (!cJSON_IsString(mode_item) || mode_item->valuestring == NULL)
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing mode");
+        return ESP_FAIL;
+    }
+
+    const char* mode = mode_item->valuestring;
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+
+    if (strcmp(mode, "rover") == 0)
+    {
+        err = gnss_set_mode_rover();
+    }
+    else if (strcmp(mode, "base") == 0)
+    {
+        const cJSON* lat_item = cJSON_GetObjectItem(root, "lat");
+        const cJSON* lon_item = cJSON_GetObjectItem(root, "lon");
+        const cJSON* height_item = cJSON_GetObjectItem(root, "height");
+
+        const char* lat_str = cJSON_IsString(lat_item) ? lat_item->valuestring : NULL;
+        const char* lon_str = cJSON_IsString(lon_item) ? lon_item->valuestring : NULL;
+        const char* height_str = cJSON_IsString(height_item) ? height_item->valuestring : NULL;
+
+        if (lat_str != NULL && lat_str[0] != '\0' && lon_str != NULL && lon_str[0] != '\0' && height_str != NULL && height_str[0] != '\0')
+        {
+            char* endptr = NULL;
+            double lat = strtod(lat_str, &endptr);
+            bool lat_ok = (*endptr == '\0');
+            double lon = strtod(lon_str, &endptr);
+            bool lon_ok = (*endptr == '\0');
+            double height = strtod(height_str, &endptr);
+            bool height_ok = (*endptr == '\0');
+
+            if (lat_ok && lon_ok && height_ok)
+            {
+                err = gnss_set_mode_base(lat, lon, height);
+                if (err == ESP_OK)
+                {
+                    config_set(CFG_BASE_LAT, lat_str);
+                    config_set(CFG_BASE_LON, lon_str);
+                    config_set(CFG_BASE_HEIGHT, height_str);
+                }
+            }
+        }
+    }
+    else if (strcmp(mode, "ppp") == 0)
+    {
+        const cJSON* dur_item = cJSON_GetObjectItem(root, "min_dur");
+        const cJSON* acc_item = cJSON_GetObjectItem(root, "acc_limit");
+
+        const char* dur_str = cJSON_IsString(dur_item) ? dur_item->valuestring : NULL;
+        const char* acc_str = cJSON_IsString(acc_item) ? acc_item->valuestring : NULL;
+
+        if (dur_str != NULL && dur_str[0] != '\0' && acc_str != NULL && acc_str[0] != '\0')
+        {
+            char* endptr = NULL;
+            unsigned long dur = strtoul(dur_str, &endptr, 10);
+            bool dur_ok = (*endptr == '\0' && dur > 0 && dur <= UINT32_MAX);
+            unsigned long acc = strtoul(acc_str, &endptr, 10);
+            bool acc_ok = (*endptr == '\0' && acc > 0 && acc <= UINT32_MAX);
+
+            if (dur_ok && acc_ok)
+            {
+                err = gnss_set_mode_ppp((uint32_t)dur, (uint32_t)acc);
+                if (err == ESP_OK)
+                {
+                    config_set(CFG_PPP_MIN_DUR, dur_str);
+                    config_set(CFG_PPP_ACC_LIMIT, acc_str);
+                }
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+
+    if (err == ESP_ERR_INVALID_ARG)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid GNSS parameters");
+        return ESP_FAIL;
+    }
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "GNSS POST command failed (%s)", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Command failed");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+}
+
+static esp_err_t server_handle_firmware_post(httpd_req_t* req)
+{
+    if (req == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = fw_update_start();
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Firmware update start failed (%s)", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start firmware update");
         return ESP_FAIL;
     }
 
@@ -713,6 +861,20 @@ esp_err_t server_init(void)
         .handler = server_handle_base_post,
     };
     httpd_register_uri_handler(g_server, &uri_base_post);
+
+    static const httpd_uri_t uri_gnss_post = {
+        .uri = "/api/gnss",
+        .method = HTTP_POST,
+        .handler = server_handle_gnss_post,
+    };
+    httpd_register_uri_handler(g_server, &uri_gnss_post);
+
+    static const httpd_uri_t uri_firmware_post = {
+        .uri = "/api/firmware",
+        .method = HTTP_POST,
+        .handler = server_handle_firmware_post,
+    };
+    httpd_register_uri_handler(g_server, &uri_firmware_post);
 
     static const httpd_uri_t uri_ws = {
         .uri = "/ws",

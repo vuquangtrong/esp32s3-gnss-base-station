@@ -193,11 +193,5 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
         return err;
     }
 
-    if (ssid != NULL)
-    {
-        config_set(CFG_WIFI_SSID, (const char*)g_wifi_sta_config.sta.ssid);
-        config_set(CFG_WIFI_PASSWORD, (const char*)g_wifi_sta_config.sta.password);
-    }
-
     return ESP_OK;
 }
