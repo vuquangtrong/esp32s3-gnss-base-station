@@ -2,13 +2,602 @@
 <html lang="vi">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GNSS Station</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GNSS Station</title>
+  <link rel="stylesheet" href="pico.min.css" />
+  <!-- Use Alpine.js 2.8.2 for better compability with old browsers -->
+  <script defer src="alpine.min.js"></script>
+  <style>
+    :root {
+      --pico-font-size: 100% !important;
+      --pico-spacing: 0.5rem;
+      --pico-nav-element-spacing-vertical: var(--pico-spacing);
+      --pico-nav-element-spacing-horizontal: var(--pico-spacing);
+      --pico-form-element-spacing-vertical: var(--pico-spacing);
+      --pico-form-element-spacing-horizontal: var(--pico-spacing);
+    }
+
+    [role="group"] button {
+      --pico-form-element-spacing-horizontal: var(--pico-spacing);
+    }
+
+    header {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+
+    summary {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    summary> :nth-child(2) {
+      margin-left: auto;
+    }
+
+    input,
+    select {
+      font-weight: bold;
+    }
+
+    .text-green {
+      color: green;
+    }
+
+    .text-orange {
+      color: darkorange;
+    }
+
+    .text-red {
+      color: red;
+    }
+
+    .notification {
+      color: red;
+      background-color: lightyellow;
+      border: solid 1px red;
+      padding: var(--pico-spacing);
+      white-space: pre-line;
+    }
+  </style>
 </head>
 
-<body>
-    <h1>GNSS Station</h1>
+<body x-data="app()" x-init="init()">
+  <template x-if="message">
+    <div class="container notification" x-text="message"></div>
+  </template>
+
+  <!-- Status Bar -->
+  <header class="container">
+    <nav>
+      <ul>
+        <li>
+          <kbd><span x-text="gnss_mode_text(status.gnss_mode)"></span></kbd>
+        </li>
+        <li>
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+            <circle cx="8" cy="8" r="8" fill="darkcyan" />
+          </svg>
+        </li>
+      </ul>
+      <ul>
+        <li>
+          <strong x-text="config.device_id"></strong>
+        </li>
+      </ul>
+      <ul>
+        <li>
+          <strong x-text="gnss.fix_status"></strong>
+        </li>
+        <li>
+          <strong x-text="gnss.sat_num"></strong>
+          <img src="favicon.ico" width="24" height="24" />
+        </li>
+        <li>
+          <span x-text="status.bat_volt"></span>mV
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- GNSS Position, always show -->
+    <details name="card_gnss_position" open>
+      <summary role="button" class="outline contrast">
+        <strong>Tọa độ GNSS</strong>
+        <span x-text="gnss.date_time"></span>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: baseline">
+        <label>Vĩ độ (Lat)</label>
+        <input readonly x-model="gnss.latitude" />
+
+        <label>Kinh độ (Lon)</label>
+        <input readonly x-model="gnss.longitude" />
+
+        <label>Độ cao</label>
+        <input readonly x-model="gnss.height" />
+
+        <label></label>
+        <div class="grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0; align-items: baseline">
+          <span>ΔH</span>
+          <span x-text="gnss.h_acc"></span>
+          <span>ΔV</span>
+          <span x-text="gnss.v_acc"></span>
+        </div>
+      </div>
+    </details>
+
+    <!-- Display Mode Buttons, always show -->
+    <div role="group">
+      <button :class="displayMode === 'rover' ? 'primary' : 'outline'" @click="setDisplayMode('rover')">Rover</button>
+      <button :class="displayMode === 'base' ? 'primary' : 'outline'" @click="setDisplayMode('base')">Base</button>
+      <button :class="displayMode === 'ppp' ? 'primary' : 'outline'" @click="setDisplayMode('ppp')">PPP</button>
+    </div>
+
+    <!-- Rover Settings, show when Rover mode -->
+    <details name="card_rover_settings" open x-show="displayMode === 'rover'">
+      <summary role="button" class="outline contrast">
+        <strong>Cài đặt Rover</strong>
+        <button class="outline" @click="setGnssMode('rover')">Kích hoạt chế độ Rover</button>
+      </summary>
+    </details>
+
+    <!-- NTRIP Client, show in Rover mode -->
+    <details name="card_ntrip_client" open x-show="displayMode === 'rover'">
+      <summary role="button" class="outline contrast">
+        <strong>NTRIP Client</strong>
+        <span x-text="conn_status_text(status.ntrip_client_status)"></span>
+        <span x-text="status.ntrip_received_bytes"></span>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: center">
+        <label>Máy chủ</label>
+        <input required x-model="config.ntrip_server" />
+
+        <label>Cổng</label>
+        <div class="grid" style="grid-template-columns: 2fr 1fr; align-items: baseline">
+          <input required x-model="config.ntrip_port" />
+        </div>
+
+        <label>Mountpoint</label>
+        <div class="grid" style="grid-template-columns: 2fr 1fr; align-items: baseline">
+          <input required x-model="config.ntrip_mntpoint" />
+          <button class="outline" @click="ntripClientQueryMountpoints()">Tra cứu</button>
+        </div>
+
+        <label>Tài khoản</label>
+        <input required x-model="config.ntrip_username" />
+
+        <label>Mật khẩu</label>
+        <input required x-model="config.ntrip_password" />
+      </div>
+      <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: baseline">
+        <button class="outline" @click="ntripClientSave()">Lưu</button>
+        <button class="outline" @click="ntripClientToggleConnection()"
+          x-text="button_text_ntrip_client_toggle(status.ntrip_client_status)"></button>
+      </div>
+
+      <hr />
+    </details>
+
+    <!-- Base Settings, show when Base mode -->
+    <details name="card_base_settings" open x-show="displayMode === 'base'">
+      <summary role="button" class="outline contrast">
+        <strong>Cài đặt Base</strong>
+        <button class="outline" @click="setGnssMode('base')">Kích hoạt chế độ Base</button>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: baseline">
+        <label>Vĩ độ (Lat)</label>
+        <input required x-model="config.base_lat" />
+
+        <label>Kinh độ (lon)</label>
+        <input required x-model="config.base_lon" />
+
+        <label>Độ cao</label>
+        <input required x-model="config.base_height" />
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: baseline">
+        <button class="outline" @click="baseSave()">Lưu</button>
+        <button class="outline" @click="setBaseAtCurrentPosition()">Dùng tọa độ hiện tại</button>
+      </div>
+
+      <hr />
+    </details>
+
+    <!-- NTRIP Caster, show when Base mode -->
+    <details name="card_ntrip_server" open x-show="displayMode === 'base'">
+      <summary role="button" class="outline contrast">
+        <strong>NTRIP Caster</strong>
+        <span x-text="conn_status_text(status.ntrip_server_status)"></span>
+        <span x-text="status.ntrip_conn_count"></span>
+        <span x-text="status.ntrip_sent_bytes"></span>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: center">
+        <label>Máy chủ</label>
+        <input readonly value="192.168.4.1" />
+
+        <label>Cổng</label>
+        <input readonly value="2101" />
+
+        <label>Mountpoint</label>
+        <input readonly value="BASE" />
+
+        <label>Tài khoản</label>
+        <input readonly value="BASE" />
+
+        <label>Mật khẩu</label>
+        <input readonly value="BASE" />
+      </div>
+    </details>
+
+    <!-- PPP Settings, show when PPP mode -->
+    <details name="card_ppp_settings" open x-show="displayMode === 'ppp'">
+      <summary role="button" class="outline contrast">
+        <strong>Cài đặt PPP</strong>
+        <button class="outline" @click="setGnssMode('ppp')">Kích hoạt chế độ PPP</button>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: baseline">
+        <label>Thời gian đo</label>
+        <div class="grid" style="grid-template-columns: 1fr 4rem; align-items: baseline">
+          <input required x-model="config.ppp_min_dur" />
+          <span>giây</span>
+        </div>
+
+        <label>Độ chính xác</label>
+        <div class="grid" style="grid-template-columns: 1fr 4rem; align-items: baseline">
+          <input required x-model="config.ppp_acc_limit" />
+          <span>mm</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- Logger, show when PPP mode -->
+    <details name="card_logger" open x-show="displayMode === 'ppp'">
+      <summary role="button" class="outline contrast">
+        <strong>Ghi dữ liệu</strong>
+        <span x-text="logger_status_text(status.logger_status)"></span>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center">
+        <label>Tệp log</label>
+        <input readonly x-model="status.logger_file" />
+
+        <label>Dung lượng</label>
+        <input readonly x-model="status.logger_size" />
+
+        <div></div>
+        <div class="grid">
+          <span></span>
+          <button class="outline" @click="loggerToggleLogging()"
+            x-text="button_text_logger_toggle(status.logger_status)"></button>
+        </div>
+      </div>
+    </details>
+
+    <!-- WiFi Settings, always show -->
+    <details name="card_wifi" open>
+      <summary role="button" class="outline contrast">
+        <strong>WiFi</strong>
+        <span x-text="conn_status_text(status.wifi_status)"></span>
+        <span x-text="status.wifi_ip_addr"></span>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center">
+        <label>Tên WiFi</label>
+        <input required x-model="config.wifi_ssid" />
+
+        <label>Mật khẩu</label>
+        <input required x-model="config.wifi_password" />
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: baseline">
+        <button class="outline" @click="wifiSave()">Lưu</button>
+        <button class="outline" @click="wifiConnect()">Kết nối</button>
+      </div>
+
+      <hr />
+    </details>
+
+    <!-- SDCard, always show -->
+    <details name="card_sdcard" open>
+      <summary role="button" class="outline contrast">
+        <strong>Thẻ nhớ SD</strong>
+        <span x-text="sdcard_status_text(status.sdcard_status)"></span>
+      </summary>
+    </details>
+
+    <!-- System, always show -->
+    <details name="card_system">
+      <summary role="button" class="outline contrast">
+        <strong>Hệ thống</strong>
+        <span></span>
+      </summary>
+
+      <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: baseline">
+        <span></span>
+        <button class="outline" @click="updateFirmware()">Cập nhật phần mềm</button>
+      </div>
+    </details>
+  </main>
+
+  <footer class="container">
+    <nav>
+      <ul>
+        <li>
+          <small>
+            <span x-text="config.app_version"></span>
+            <span x-text="config.build_time"></span>
+            <span x-text="config.git_commit"></span>
+          </small>
+        </li>
+      </ul>
+      <ul>
+        <li>
+          <small><span x-text="status.bat_volt"></span>mV</small>
+        </li>
+      </ul>
+    </nav>
+  </footer>
+
+  <!-- Use ES5 Javascript for better compatibility with old browsers -->
+  <script>
+    /* Format single-digit numbers with a leading zero */
+    function pad2(n) {
+      return n < 10 ? "0" + n : "" + n;
+    }
+
+    function app() {
+      return {
+        message: "",
+        displayMode: "rover",
+        config: {}, /* fields are defined in config.c */
+        status: {}, /* fields are defined in status.c */
+        gnss: {
+          fix_status: "No Fix",
+          sat_num: 0,
+          date_time: "",
+          latitude: "",
+          longitude: "",
+          height: "",
+          h_acc: "",
+          v_acc: ""
+        },
+        ws: null,
+        ubxBuf: [],
+
+        /* Switch active configuration view tab */
+        setDisplayMode: function (mode) {
+          this.displayMode = mode;
+        },
+
+        /* Status code to human-readable text helpers */
+        gnss_mode_text: function (mode) {
+          if (mode === 0) return "ROVER";
+          if (mode === 1) return "BASE";
+          if (mode === 2) return "PPP";
+          return "";
+        },
+
+        conn_status_text: function (st) {
+          if (st === 0) return "Chưa kết nối";
+          if (st === 1) return "Đang kết nối";
+          if (st === 2) return "Đã kết nối";
+          return "";
+        },
+
+        sdcard_status_text: function (st) {
+          if (st === 0) return "Không có thẻ";
+          if (st === 1) return "Đã gắn thẻ";
+          if (st === 2) return "Lỗi thẻ nhớ";
+          return "";
+        },
+
+        logger_status_text: function (st) {
+          if (st === 0) return "Đã dừng";
+          if (st === 1) return "Đang ghi";
+          if (st === 2) return "Lỗi ghi";
+          return "";
+        },
+
+        fw_update_status_text: function (st) {
+          if (st === 0) return "Sẵn sàng";
+          if (st === 1) return "Đang kiểm tra";
+          if (st === 2) return "Đang nạp App";
+          if (st === 3) return "Đang nạp Web";
+          if (st === 4) return "Thành công";
+          if (st === 5) return "Thất bại";
+          return "";
+        },
+
+        button_text_ntrip_client_toggle: function (st) {
+          return (st === 1 || st === 2) ? "Ngắt kết nối" : "Kết nối";
+        },
+
+        button_text_logger_toggle: function (st) {
+          return (st === 1) ? "Dừng ghi" : "Bắt đầu ghi";
+        },
+
+        /* Parse 92-byte UBX-NAV-PVT (0x01 0x07) payload (little-endian) */
+        decodeUbxNavPvt: function (payload) {
+          var dv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+          var year = dv.getUint16(4, true);
+          var month = dv.getUint8(6);
+          var day = dv.getUint8(7);
+          var hour = dv.getUint8(8);
+          var min = dv.getUint8(9);
+          var sec = dv.getUint8(10);
+
+          var fixType = dv.getUint8(20);
+          var flags = dv.getUint8(21);
+          var gnssFixOK = (flags & 0x01) !== 0;
+          var diffSoln = (flags & 0x02) !== 0;
+          var carrSoln = (flags >> 6) & 0x03;
+
+          var numSV = dv.getUint8(23);
+          var lon = dv.getInt32(24, true) * 1e-7;
+          var lat = dv.getInt32(28, true) * 1e-7;
+          var height = dv.getInt32(32, true) / 1000.0;
+          var hAcc = dv.getUint32(40, true) / 1000.0;
+          var vAcc = dv.getUint32(44, true) / 1000.0;
+
+          var fixText = "No Fix";
+          if (gnssFixOK) {
+            if (carrSoln === 2) {
+              fixText = "RTK Fixed";
+            } else if (carrSoln === 1) {
+              fixText = "RTK Float";
+            } else if (diffSoln) {
+              fixText = "DGNSS";
+            } else if (fixType === 3) {
+              fixText = "3D Fix";
+            } else if (fixType === 2) {
+              fixText = "2D Fix";
+            } else if (fixType === 5) {
+              fixText = "Time Only";
+            }
+          }
+
+          this.gnss.date_time = year + "-" + pad2(month) + "-" + pad2(day) + " " + pad2(hour) + ":" + pad2(min) + ":" + pad2(sec);
+          this.gnss.fix_status = fixText;
+          this.gnss.sat_num = numSV;
+          this.gnss.latitude = lat.toFixed(9);
+          this.gnss.longitude = lon.toFixed(9);
+          this.gnss.height = height.toFixed(4);
+          this.gnss.h_acc = hAcc.toFixed(3);
+          this.gnss.v_acc = vAcc.toFixed(3);
+        },
+
+        /* Accumulate binary stream and extract valid UBX frames */
+        feedUbxBytes: function (arrayBuffer) {
+          var bytes = new Uint8Array(arrayBuffer);
+          var i;
+          for (i = 0; i < bytes.length; i++) {
+            this.ubxBuf.push(bytes[i]);
+          }
+
+          /* Cap buffer size to prevent unbounded growth */
+          if (this.ubxBuf.length > 4096) {
+            this.ubxBuf.splice(0, this.ubxBuf.length - 2048);
+          }
+
+          /* Minimum UBX frame is 8 bytes: 2 sync + 1 class + 1 id + 2 length + 2 checksum */
+          while (this.ubxBuf.length >= 8) {
+            /* Look for UBX sync chars (0xB5 0x62) */
+            if (this.ubxBuf[0] !== 0xB5 || this.ubxBuf[1] !== 0x62) {
+              this.ubxBuf.shift();
+              continue;
+            }
+
+            var cls = this.ubxBuf[2];
+            var id = this.ubxBuf[3];
+            var len = this.ubxBuf[4] | (this.ubxBuf[5] << 8);
+
+            /* Reject corrupted payload length */
+            if (len > 1024) {
+              this.ubxBuf.shift();
+              continue;
+            }
+
+            var frameLen = 6 + len + 2;
+            if (this.ubxBuf.length < frameLen) {
+              break; /* Wait for remaining bytes */
+            }
+
+            /* Verify 8-bit Fletcher checksum over class, id, length, and payload */
+            var ckA = 0;
+            var ckB = 0;
+            for (i = 2; i < 6 + len; i++) {
+              ckA = (ckA + this.ubxBuf[i]) & 0xFF;
+              ckB = (ckB + ckA) & 0xFF;
+            }
+
+            if (ckA === this.ubxBuf[6 + len] && ckB === this.ubxBuf[6 + len + 1]) {
+              /* Match UBX-NAV-PVT (class 0x01, id 0x07, length 92) */
+              if (cls === 0x01 && id === 0x07 && len === 92) {
+                var payload = new Uint8Array(92);
+                for (i = 0; i < 92; i++) {
+                  payload[i] = this.ubxBuf[6 + i];
+                }
+                this.decodeUbxNavPvt(payload);
+              }
+              this.ubxBuf.splice(0, frameLen);
+            } else {
+              this.ubxBuf.shift();
+            }
+          }
+        },
+
+        /* Fetch initial configuration via XMLHttpRequest (compatible with older Android/Chrome) */
+        fetchConfig: function () {
+          var self = this;
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", "/api/config", true);
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                self.config = JSON.parse(xhr.responseText);
+              } catch (e) {
+                console.error("Invalid config JSON:", e);
+              }
+            } else {
+              console.error("Failed to fetch config: HTTP " + xhr.status);
+            }
+          };
+          xhr.send();
+        },
+
+        /* Connect to WebSocket for real-time JSON status and binary UBX stream */
+        connectWebSocket: function () {
+          var self = this;
+          var proto = (window.location.protocol === "https:") ? "wss:" : "ws:";
+          var wsUrl = proto + "//" + window.location.host + "/ws";
+          var ws = new WebSocket(wsUrl);
+          ws.binaryType = "arraybuffer";
+          self.ws = ws;
+
+          ws.onmessage = function (evt) {
+            if (typeof evt.data === "string") {
+              try {
+                self.status = JSON.parse(evt.data);
+              } catch (e) {
+                console.error("Invalid status JSON:", e);
+              }
+            } else if (evt.data instanceof ArrayBuffer) {
+              self.feedUbxBytes(evt.data);
+            }
+          };
+
+          /* Auto-reconnect after 2 seconds on disconnect */
+          ws.onclose = function () {
+            console.log("WS close")
+            self.ws = null;
+            setTimeout(function () {
+              self.connectWebSocket();
+            }, 2000);
+          };
+
+          ws.onerror = function () {
+            console.log("WS error")
+            ws.close();
+          };
+        },
+
+        init: function () {
+          this.fetchConfig();
+          this.connectWebSocket();
+        }
+      };
+    }
+  </script>
 </body>
 
 </html>

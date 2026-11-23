@@ -1,6 +1,7 @@
 #ifndef STATUS_H
 #define STATUS_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define STT_VALUE_LENGTH_MAX 128
@@ -112,6 +113,7 @@ int32_t status_get_int(status_type_t key);
 double status_get_double(status_type_t key);
 const char* status_get_str(status_type_t key);
 
+bool status_has_changed(void);
 const char* status_get_all(void);
 
 #endif  // STATUS_H

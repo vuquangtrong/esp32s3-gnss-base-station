@@ -166,6 +166,11 @@ const char* status_get_str(status_type_t key)
     return g_status[key].value.str_value;
 }
 
+bool status_has_changed(void)
+{
+    return g_status_changed;
+}
+
 const char* status_get_all(void)
 {
     if (!g_status_changed && g_json[0] != '\0')

@@ -10,6 +10,7 @@ set(srcs
     battery.c
     factory_test.c
     wifi.c
+    server.c
     main.c
 )
 
@@ -26,6 +27,7 @@ idf_component_register(SRCS ${srcs}
         esp_driver_uart
         esp_adc
         esp_wifi
+        esp_http_server
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
