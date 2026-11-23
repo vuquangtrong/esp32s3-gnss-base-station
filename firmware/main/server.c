@@ -36,6 +36,70 @@ static uint8_t g_uart_buf[SERVER_UART_BUF_LEN];
 // Flag set when a new WebSocket client connects so the broadcast task immediately sends a status snapshot
 static volatile bool g_ws_client_joined = false;
 
+// Cached ETag for files
+static etag_cache_entry_t g_etag_cache[ETAG_CACHE_MAX];
+static size_t g_etag_cache_count = 0;
+
+static bool server_get_file_etag(const char* filepath, char* etag_out, size_t max_len)
+{
+    if (filepath == NULL || etag_out == NULL || max_len == 0)
+    {
+        return false;
+    }
+
+    // Check if the ETag is already in the RAM cache
+    for (size_t i = 0; i < g_etag_cache_count; i++)
+    {
+        if (strncmp(g_etag_cache[i].filepath, filepath, SERVER_FILE_PATH_MAX) == 0)
+        {
+            strlcpy(etag_out, g_etag_cache[i].etag, max_len);
+            return true;
+        }
+    }
+
+    // Cache miss — read CRC from filesystem
+    char crc_filepath[SERVER_FILE_PATH_MAX];
+    int written = snprintf(crc_filepath, sizeof(crc_filepath), "%s.crc", filepath);
+    if (written < 0 || (size_t)written >= sizeof(crc_filepath))
+    {
+        return false;
+    }
+
+    int crc_fd = open(crc_filepath, O_RDONLY, 0);
+    if (crc_fd == -1)
+    {
+        return false;  // CRC file not found
+    }
+
+    char crc_buf[32];
+    ssize_t bytes_read = read(crc_fd, crc_buf, sizeof(crc_buf) - 1);
+    close(crc_fd);
+
+    if (bytes_read > 0)
+    {
+        crc_buf[bytes_read] = '\0';
+        crc_buf[strcspn(crc_buf, "\r\n")] = '\0';
+        if (crc_buf[0] == '\0')
+        {
+            return false;
+        }
+
+        // HTTP ETags must be wrapped in double quotes
+        snprintf(etag_out, max_len, "\"%s\"", crc_buf);
+
+        // Store in cache if space allows
+        if (g_etag_cache_count < ETAG_CACHE_MAX)
+        {
+            strlcpy(g_etag_cache[g_etag_cache_count].filepath, filepath, SERVER_FILE_PATH_MAX);
+            strlcpy(g_etag_cache[g_etag_cache_count].etag, etag_out, FILE_ETAG_LENGTH_MAX);
+            g_etag_cache_count++;
+        }
+        return true;
+    }
+
+    return false;  // File was empty or failed to read
+}
+
 static const char* server_content_type(const char* filepath)
 {
     const char* ext = strrchr(filepath, '.');
@@ -681,9 +745,10 @@ static esp_err_t server_handle_static_get(httpd_req_t* req)
     // Strip query string or fragment before mapping URI to file path
     size_t uri_len = strcspn(uri, "?#");
 
-    if (uri_len == 0 || (uri_len == 1 && uri[0] == '/'))
+    if (uri_len == 0 || (uri_len == 1 && uri[0] == '/') || (uri_len == sizeof("/index.html") - 1 && strncmp(uri, "/index.html", uri_len) == 0))
     {
         snprintf(filepath, sizeof(filepath), "%s/index.html", WWW_BASE_PATH);
+        goto serve_file;  // do not cache index files to force load them
     }
     else
     {
@@ -702,6 +767,32 @@ static esp_err_t server_handle_static_get(httpd_req_t* req)
         }
     }
 
+    // get ETag if exists
+    char etag[FILE_ETAG_LENGTH_MAX] = {0};
+    bool has_etag = server_get_file_etag(filepath, etag, sizeof(etag));
+
+    // process the ETag and If-None-Match header
+    if (has_etag)
+    {
+        char client_etag[FILE_ETAG_LENGTH_MAX];
+        esp_err_t err = httpd_req_get_hdr_value_str(req, "If-None-Match", client_etag, sizeof(client_etag));
+        if (err == ESP_OK)
+        {
+            // if matched, send 304 Not Modified and skip sending the file
+            if (strncmp(client_etag, etag, FILE_ETAG_LENGTH_MAX) == 0)
+            {
+                ESP_LOGI(TAG, "ETag matched for %s. Sending 304.", filepath);
+                httpd_resp_set_status(req, "304 Not Modified");
+                httpd_resp_send(req, NULL, 0);
+                return ESP_OK;
+            }
+        }
+        // if not match, attach the ETag header to the upcoming file response
+        httpd_resp_set_hdr(req, "ETag", etag);
+        httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+    }
+
+serve_file:
     struct stat st = {0};
     if (stat(filepath, &st) != 0 || !S_ISREG(st.st_mode))
     {

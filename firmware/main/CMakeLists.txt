@@ -65,4 +65,5 @@ endif()
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     FACTORY_TEST=0
+    ETAG_CACHE_MAX=4
 )

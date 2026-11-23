@@ -11,6 +11,14 @@
 #define SERVER_WS_CLIENTS_MAX  16
 #define SERVER_UART_TIMEOUT_MS 100
 
+#define FILE_ETAG_LENGTH_MAX 64
+
+typedef struct
+{
+    char filepath[SERVER_FILE_PATH_MAX];
+    char etag[FILE_ETAG_LENGTH_MAX];
+} etag_cache_entry_t;
+
 esp_err_t server_init(void);
 
 #endif  // SERVER_H
