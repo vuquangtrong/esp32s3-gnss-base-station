@@ -1,5 +1,6 @@
 #include "status.h"
 
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -28,16 +29,6 @@ static status_entry_t g_status[STT_MAX] = {
     // GNSS Mode
     [STT_GNSS_MODE] = {.name = "gnss_mode", .type = STT_VALUE_INT, .value = {.i_value = GNSS_ROVER}},
 
-    // GNSS Position
-    [STT_GNSS_TIME] = {.name = "gnss_time", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
-    [STT_GNSS_LAT] = {.name = "gnss_lat", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
-    [STT_GNSS_LON] = {.name = "gnss_lon", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
-    [STT_GNSS_HEIGHT] = {.name = "gnss_height", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
-    [STT_GNSS_SAT] = {.name = "gnss_sat", .type = STT_VALUE_INT, .value = {.i_value = 0}},
-    [STT_GNSS_HACC] = {.name = "gnss_hacc", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
-    [STT_GNSS_VACC] = {.name = "gnss_vacc", .type = STT_VALUE_DOUBLE, .value = {.d_value = 0.0}},
-    [STT_GNSS_FIX] = {.name = "gnss_fix", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
-
     // SDCard
     [STT_SDCARD_STATUS] = {.name = "sdcard_status", .type = STT_VALUE_INT, .value = {.i_value = SDCARD_REMOVED}},
 
@@ -52,12 +43,12 @@ static status_entry_t g_status[STT_MAX] = {
 
     // NTRIP Server
     [STT_NTRIP_SERVER_STATUS] = {.name = "ntrip_server_status", .type = STT_VALUE_INT, .value = {.i_value = CONN_DISCONNECTED}},
-    [STT_NTRIP_SERVER_CLIENT_NUM] = {.name = "ntrip_server_client_num", .type = STT_VALUE_INT, .value = {.i_value = 0}},
+    [STT_NTRIP_CONN_COUNT] = {.name = "ntrip_conn_count", .type = STT_VALUE_INT, .value = {.i_value = 0}},
     [STT_NTRIP_SENT_BYTES] = {.name = "ntrip_sent_bytes", .type = STT_VALUE_INT, .value = {.i_value = 0}},
 
     // Firmware Update
     [STT_FW_UPDATE_AVAILABLE] = {.name = "fw_update_available", .type = STT_VALUE_INT, .value = {.i_value = 0}},
-    [STT_FW_UPDATE_MESSAGE] = {.name = "fw_update_message", .type = STT_VALUE_STRING, .value = {.str_value = ""}},
+    [STT_FW_UPDATE_STATUS] = {.name = "fw_update_status", .type = STT_VALUE_INT, .value = {.i_value = FW_UPDATE_IDLE}},
 };
 
 static bool status_key_valid(status_type_t key)
@@ -85,7 +76,7 @@ status_value_type_t status_type(status_type_t key)
     return g_status[key].type;
 }
 
-void status_set_int(status_type_t key, int value)
+void status_set_int(status_type_t key, int32_t value)
 {
     if (!status_key_valid(key) || g_status[key].type != STT_VALUE_INT)
     {
@@ -105,6 +96,12 @@ void status_set_double(status_type_t key, double value)
     if (!status_key_valid(key) || g_status[key].type != STT_VALUE_DOUBLE)
     {
         ESP_LOGE(TAG, "Invalid double status key: %d", (int)key);
+        return;
+    }
+
+    if (!isfinite(value))
+    {
+        ESP_LOGE(TAG, "Non-finite value for status key: %s", g_status[key].name);
         return;
     }
 
@@ -136,7 +133,7 @@ void status_set_str(status_type_t key, const char* value)
     }
 }
 
-int status_get_int(status_type_t key)
+int32_t status_get_int(status_type_t key)
 {
     if (!status_key_valid(key) || g_status[key].type != STT_VALUE_INT)
     {

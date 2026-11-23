@@ -23,7 +23,7 @@ static char g_json[CFG_JSON_LENGTH_MAX];
 // initialized with defaults
 static config_entry_t g_configs[CFG_MAX] = {
     // Project
-    [CFG_VERSION] = {"version", APP_VERSION, true},
+    [CFG_VERSION] = {"app_version", APP_VERSION, true},
     [CFG_BUILD_TIME] = {"build_time", BUILD_TIME, true},
     [CFG_GIT_COMMIT] = {"git_commit", GIT_COMMIT, true},
     // Device

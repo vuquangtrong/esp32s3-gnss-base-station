@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "cJSON.h"
 #include "esp_err.h"
 
 #define DATA_PARTITION_LABEL "data"
@@ -16,9 +15,42 @@
 
 esp_err_t storage_init(void);
 
-char* storage_read_json_file(const char* filepath);
+char* storage_file_read(const char* filepath);
 
-esp_err_t storage_set_key(const char* filepath, const char* key, const cJSON* value);
-esp_err_t storage_delete_key(const char* filepath, const char* key);
+/* Data files are simple json objects with array of entries
+
+wifi.json
+
+{
+    "data": [
+        {"ssid": "ABCD", "password": "12345678"},
+        {"ssid": "EFGH", "password": "87654321"}
+    ]
+}
+
+ntrip.json
+
+{
+    "data": [
+        {"server": "0.0.0.0", "port": "2101", "mntpoint": "ABC", "username": "user", "password": "1234"},
+        {"server": "0.0.0.0", "port": "2101", "mntpoint": "ABC", "username": "user", "password": "1234"}
+    ]
+}
+
+base.json
+
+{
+    "data": [
+        {"lat": "0.000000000", "lon": "0.000000000", "height": "0.0000"},
+        {"lat": "0.000000000", "lon": "0.000000000", "height": "0.0000"}
+    ]
+}
+*/
+
+// convert input string to CJson object and append to data object
+esp_err_t storage_file_write_entry(const char* filepath, const char* serialized_object);
+
+// delete object at the n-th index in the data object
+esp_err_t storage_file_delete_entry(const char* filepath, uint8_t index);
 
 #endif  // STORAGE_H

@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 
+#include "cJSON.h"
 #include "esp_littlefs.h"
 #include "esp_log.h"
 
@@ -35,7 +36,7 @@ esp_err_t storage_init(void)
     return ESP_OK;
 }
 
-char* storage_read_json_file(const char* filepath)
+char* storage_file_read(const char* filepath)
 {
     if (filepath == NULL)
     {
@@ -76,24 +77,18 @@ char* storage_read_json_file(const char* filepath)
     return buffer;
 }
 
-static esp_err_t storage_write_json(const char* filepath, const cJSON* json)
+static esp_err_t storage_file_save_json(const char* filepath, const cJSON* root)
 {
-    if (filepath == NULL || json == NULL)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    char* json_str = cJSON_PrintUnformatted(json);
+    char* json_str = cJSON_PrintUnformatted(root);
     if (json_str == NULL)
     {
         return ESP_ERR_NO_MEM;
     }
 
-    int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd == -1)
     {
         cJSON_free(json_str);
-        ESP_LOGE(TAG, "Failed to open file for writing: %s", filepath);
         return ESP_FAIL;
     }
 
@@ -102,92 +97,97 @@ static esp_err_t storage_write_json(const char* filepath, const cJSON* json)
     close(fd);
     cJSON_free(json_str);
 
-    if (written != (ssize_t)len)
-    {
-        ESP_LOGE(TAG, "Failed to write all bytes to %s", filepath);
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
+    return (written == (ssize_t)len) ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t storage_set_key(const char* filepath, const char* key, const cJSON* value)
+esp_err_t storage_file_write_entry(const char* filepath, const char* serialized_object)
 {
-    if (filepath == NULL || key == NULL || value == NULL)
+    if (filepath == NULL || serialized_object == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    cJSON* root = NULL;
-    char* file_content = storage_read_json_file(filepath);
-    if (file_content != NULL)
+    cJSON* entry = cJSON_Parse(serialized_object);
+    if (!cJSON_IsObject(entry))
     {
-        root = cJSON_Parse(file_content);
-        free(file_content);
+        cJSON_Delete(entry);
+        return ESP_ERR_INVALID_ARG;
     }
 
-    if (root == NULL || !cJSON_IsObject(root))
+    cJSON* root = NULL;
+    char* content = storage_file_read(filepath);
+    if (content != NULL)
+    {
+        root = cJSON_Parse(content);
+        free(content);
+    }
+
+    if (!cJSON_IsObject(root))
     {
         cJSON_Delete(root);
         root = cJSON_CreateObject();
         if (root == NULL)
         {
+            cJSON_Delete(entry);
             return ESP_ERR_NO_MEM;
         }
     }
 
-    cJSON* copy = cJSON_Duplicate(value, 1);
-    if (copy == NULL)
+    cJSON* data = cJSON_GetObjectItem(root, "data");
+    if (!cJSON_IsArray(data))
     {
+        cJSON_DeleteItemFromObject(root, "data");
+        data = cJSON_AddArrayToObject(root, "data");
+        if (data == NULL)
+        {
+            cJSON_Delete(entry);
+            cJSON_Delete(root);
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    if (!cJSON_AddItemToArray(data, entry))
+    {
+        cJSON_Delete(entry);
         cJSON_Delete(root);
         return ESP_ERR_NO_MEM;
     }
 
-    if (cJSON_HasObjectItem(root, key))
-    {
-        cJSON_ReplaceItemInObjectCaseSensitive(root, key, copy);
-    }
-    else
-    {
-        cJSON_AddItemToObject(root, key, copy);
-    }
-
-    esp_err_t err = storage_write_json(filepath, root);
+    esp_err_t ret = storage_file_save_json(filepath, root);
     cJSON_Delete(root);
-    return err;
+    return ret;
 }
 
-esp_err_t storage_delete_key(const char* filepath, const char* key)
+esp_err_t storage_file_delete_entry(const char* filepath, uint8_t index)
 {
-    if (filepath == NULL || key == NULL)
+    if (filepath == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    char* file_content = storage_read_json_file(filepath);
-    if (file_content == NULL)
+    char* content = storage_file_read(filepath);
+    if (content == NULL)
     {
         return ESP_ERR_NOT_FOUND;
     }
 
-    cJSON* root = cJSON_Parse(file_content);
-    free(file_content);
-
-    if (root == NULL || !cJSON_IsObject(root))
+    cJSON* root = cJSON_Parse(content);
+    free(content);
+    if (root == NULL)
     {
-        cJSON_Delete(root);
         return ESP_FAIL;
     }
 
-    if (!cJSON_HasObjectItem(root, key))
+    cJSON* data = cJSON_GetObjectItem(root, "data");
+    if (!cJSON_IsArray(data) || (int)index >= cJSON_GetArraySize(data))
     {
         cJSON_Delete(root);
-        return ESP_ERR_NOT_FOUND;
+        return ESP_ERR_INVALID_ARG;
     }
 
-    cJSON_DeleteItemFromObjectCaseSensitive(root, key);
+    cJSON_DeleteItemFromArray(data, (int)index);
 
-    esp_err_t err = storage_write_json(filepath, root);
+    esp_err_t ret = storage_file_save_json(filepath, root);
     cJSON_Delete(root);
-    return err;
+    return ret;
 }

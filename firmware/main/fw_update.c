@@ -1,5 +1,6 @@
 #include "fw_update.h"
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -22,14 +23,6 @@
 static const char* TAG = "fw_update";
 
 static uint8_t s_buf[FW_UPDATE_BUFFER_SIZE];
-
-static void fw_set_message(const char* msg)
-{
-    if (msg != NULL)
-    {
-        status_set_str(STT_FW_UPDATE_MESSAGE, msg);
-    }
-}
 
 static bool fw_verify_sha256(FILE* file, uint32_t offset, uint32_t size, const uint8_t expected[FW_UPDATE_SHA256_LEN])
 {
@@ -196,74 +189,80 @@ void fw_update_check(void)
     }
 }
 
+static esp_err_t fw_update_fail(FILE* file, esp_err_t err, const char* format, ...)
+{
+    char msg[128];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(msg, sizeof(msg), format, args);
+    va_end(args);
+    ESP_LOGE(TAG, "%s", msg);
+
+    if (file != NULL)
+    {
+        sdcard_file_close(file);
+    }
+    status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_FAILED);
+    return err;
+}
+
 esp_err_t fw_update_start(void)
 {
-    fw_set_message("Verifying update.bin");
+    status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_VERIFYING);
+
+    FILE* file = NULL;
 
     struct stat st = {0};
     if (stat(FW_UPDATE_FILEPATH, &st) != 0 || !S_ISREG(st.st_mode))
     {
-        fw_set_message("update.bin not found");
-        return ESP_ERR_NOT_FOUND;
+        return fw_update_fail(NULL, ESP_ERR_NOT_FOUND, "%s not found", FW_UPDATE_FILEPATH);
     }
 
     if ((uint64_t)st.st_size < FW_UPDATE_HEADER_SIZE)
     {
-        fw_set_message("Invalid update.bin size");
-        return ESP_ERR_INVALID_SIZE;
+        return fw_update_fail(NULL, ESP_ERR_INVALID_SIZE, "Invalid %s size", FW_UPDATE_FILENAME);
     }
 
     const esp_partition_t* running = esp_ota_get_running_partition();
     const esp_partition_t* target_ota = esp_ota_get_next_update_partition(NULL);
     if (running == NULL || target_ota == NULL)
     {
-        fw_set_message("OTA partition not found");
-        return ESP_ERR_NOT_FOUND;
+        return fw_update_fail(NULL, ESP_ERR_NOT_FOUND, "OTA partition not found");
     }
 
     const char* target_www_label = (target_ota->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? FW_UPDATE_WWW_1 : FW_UPDATE_WWW_0;
     const esp_partition_t* target_www = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_LITTLEFS, target_www_label);
     if (target_www == NULL)
     {
-        fw_set_message("WWW partition not found");
-        return ESP_ERR_NOT_FOUND;
+        return fw_update_fail(NULL, ESP_ERR_NOT_FOUND, "WWW partition %s not found", target_www_label);
     }
 
-    FILE* file = sdcard_file_open(FW_UPDATE_FILENAME, "rb");
+    file = sdcard_file_open(FW_UPDATE_FILENAME, "rb");
     if (file == NULL)
     {
-        fw_set_message("Failed to open update.bin");
-        return ESP_FAIL;
+        return fw_update_fail(NULL, ESP_FAIL, "Failed to open %s", FW_UPDATE_FILENAME);
     }
 
     fw_update_header_t header = {0};
     if (fread(&header, 1, sizeof(header), file) != sizeof(header))
     {
-        sdcard_file_close(file);
-        fw_set_message("Failed to read header");
-        return ESP_FAIL;
+        return fw_update_fail(file, ESP_FAIL, "Failed to read header");
     }
 
     if (strncmp(header.magic, FW_UPDATE_MAGIC, sizeof(header.magic)) != 0 || header.version != FW_UPDATE_VERSION)
     {
-        sdcard_file_close(file);
-        fw_set_message("Invalid update.bin header");
-        return ESP_ERR_INVALID_ARG;
+        return fw_update_fail(file, ESP_ERR_INVALID_ARG, "Invalid %s header", FW_UPDATE_FILENAME);
     }
 
     if (header.app_size == 0 || header.app_size > target_ota->size || header.www_size == 0 || header.www_size > target_www->size)
     {
-        sdcard_file_close(file);
-        fw_set_message("Invalid image size");
-        return ESP_ERR_INVALID_SIZE;
+        return fw_update_fail(file, ESP_ERR_INVALID_SIZE, "Invalid image size");
     }
 
     uint64_t expected_size = (uint64_t)FW_UPDATE_HEADER_SIZE + header.app_size + header.www_size;
     if ((uint64_t)st.st_size != expected_size)
     {
-        sdcard_file_close(file);
-        fw_set_message("update.bin size mismatch");
-        return ESP_ERR_INVALID_SIZE;
+        return fw_update_fail(file, ESP_ERR_INVALID_SIZE, "%s size mismatch", FW_UPDATE_FILENAME);
     }
 
     uint32_t app_offset = FW_UPDATE_HEADER_SIZE;
@@ -271,48 +270,39 @@ esp_err_t fw_update_start(void)
 
     if (!fw_verify_sha256(file, app_offset, header.app_size, header.app_sha256))
     {
-        sdcard_file_close(file);
-        fw_set_message("App checksum mismatch");
-        return ESP_ERR_INVALID_CRC;
+        return fw_update_fail(file, ESP_ERR_INVALID_CRC, "App checksum mismatch");
     }
 
     if (!fw_verify_sha256(file, www_offset, header.www_size, header.www_sha256))
     {
-        sdcard_file_close(file);
-        fw_set_message("WWW checksum mismatch");
-        return ESP_ERR_INVALID_CRC;
+        return fw_update_fail(file, ESP_ERR_INVALID_CRC, "WWW checksum mismatch");
     }
 
     ESP_LOGI(TAG, "Updating from %s/%s to %s/%s", running->label, fw_update_get_active_www(), target_ota->label, target_www->label);
 
-    fw_set_message("Updating app");
+    status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_UPDATING_APP);
     esp_err_t err = fw_write_app(file, target_ota, app_offset, header.app_size);
     if (err != ESP_OK)
     {
-        sdcard_file_close(file);
-        fw_set_message("App update failed");
-        return err;
+        return fw_update_fail(file, err, "App update failed");
     }
 
-    fw_set_message("Updating www");
+    status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_UPDATING_WWW);
     err = fw_write_www(file, target_www, www_offset, header.www_size);
-    sdcard_file_close(file);
     if (err != ESP_OK)
     {
-        fw_set_message("WWW update failed");
-        return err;
+        return fw_update_fail(file, err, "WWW update failed");
     }
 
     err = esp_ota_set_boot_partition(target_ota);
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
-        fw_set_message("Failed to set boot partition");
-        return err;
+        return fw_update_fail(file, err, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
     }
 
-    fw_set_message("Update complete, rebooting");
+    status_set_int(STT_FW_UPDATE_STATUS, FW_UPDATE_SUCCESS);
     ESP_LOGI(TAG, "Firmware update complete, rebooting to %s/%s", target_ota->label, target_www->label);
+    sdcard_file_close(file);
     vTaskDelay(pdMS_TO_TICKS(500));
     esp_restart();
 

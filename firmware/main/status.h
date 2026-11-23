@@ -1,6 +1,8 @@
 #ifndef STATUS_H
 #define STATUS_H
 
+#include <stdint.h>
+
 #define STT_VALUE_LENGTH_MAX 128
 
 typedef enum
@@ -22,14 +24,24 @@ typedef enum
     SDCARD_REMOVED,
     SDCARD_MOUNTED,
     SDCARD_ERROR
-} sdcard_state_t;
+} sdcard_status_t;
 
 typedef enum
 {
     LOGGER_STOPPED,
     LOGGER_RUNNING,
     LOGGER_ERROR
-} logger_state_t;
+} logger_status_t;
+
+typedef enum
+{
+    FW_UPDATE_IDLE,
+    FW_UPDATE_VERIFYING,
+    FW_UPDATE_UPDATING_APP,
+    FW_UPDATE_UPDATING_WWW,
+    FW_UPDATE_SUCCESS,
+    FW_UPDATE_FAILED
+} fw_update_status_t;
 
 typedef enum
 {
@@ -42,16 +54,6 @@ typedef enum
 
     // GNSS Mode
     STT_GNSS_MODE,
-
-    // GNSS Position
-    STT_GNSS_TIME,
-    STT_GNSS_LAT,     // deg, 9 decimal places
-    STT_GNSS_LON,     // deg, 9 decimal places
-    STT_GNSS_HEIGHT,  // mm
-    STT_GNSS_SAT,
-    STT_GNSS_HACC,
-    STT_GNSS_VACC,
-    STT_GNSS_FIX,
 
     // SDCard
     STT_SDCARD_STATUS,
@@ -67,12 +69,12 @@ typedef enum
 
     // NTRIP Server
     STT_NTRIP_SERVER_STATUS,
-    STT_NTRIP_SERVER_CLIENT_NUM,
+    STT_NTRIP_CONN_COUNT,
     STT_NTRIP_SENT_BYTES,
 
     // Firmware Update
     STT_FW_UPDATE_AVAILABLE,
-    STT_FW_UPDATE_MESSAGE,
+    STT_FW_UPDATE_STATUS,
 
     //
     STT_MAX
@@ -87,7 +89,7 @@ typedef enum
 
 typedef union
 {
-    int i_value;
+    int32_t i_value;
     double d_value;
     char str_value[STT_VALUE_LENGTH_MAX];
 } status_value_u;
@@ -102,11 +104,11 @@ typedef struct
 const char* status_name(status_type_t key);
 status_value_type_t status_type(status_type_t key);
 
-void status_set_int(status_type_t key, int value);
+void status_set_int(status_type_t key, int32_t value);
 void status_set_double(status_type_t key, double value);
 void status_set_str(status_type_t key, const char* value);
 
-int status_get_int(status_type_t key);
+int32_t status_get_int(status_type_t key);
 double status_get_double(status_type_t key);
 const char* status_get_str(status_type_t key);
 
