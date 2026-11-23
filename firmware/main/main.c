@@ -5,6 +5,7 @@
 #include "config.h"
 #include "factory_test.h"
 #include "fw_update.h"
+#include "gnss.h"
 #include "sdcard.h"
 #include "status.h"
 #include "storage.h"
@@ -27,6 +28,7 @@ void app_main(void)
 #endif
 
     ESP_ERROR_CHECK(wifi_init());
+    ESP_ERROR_CHECK(gnss_set_mode_rover());
 
     printf("app=%s, www=%s\n", fw_update_get_active_app(), fw_update_get_active_www());
     printf("%s\n", config_get_all());

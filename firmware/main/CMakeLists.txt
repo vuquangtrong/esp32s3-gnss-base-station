@@ -6,6 +6,7 @@ set(srcs
     fw_update.c
     ublox.c
     uart.c
+    gnss.c
     battery.c
     factory_test.c
     wifi.c
