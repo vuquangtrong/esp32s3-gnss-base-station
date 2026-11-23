@@ -192,5 +192,12 @@ esp_err_t wifi_sta_connect(const char* ssid, const char* password)
         ESP_LOGE(TAG_STA, "Failed to initiate WiFi connection: %s", esp_err_to_name(err));
         return err;
     }
+
+    if (ssid != NULL)
+    {
+        config_set(CFG_WIFI_SSID, (const char*)g_wifi_sta_config.sta.ssid);
+        config_set(CFG_WIFI_PASSWORD, (const char*)g_wifi_sta_config.sta.password);
+    }
+
     return ESP_OK;
 }

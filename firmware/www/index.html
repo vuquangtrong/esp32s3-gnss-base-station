@@ -61,6 +61,24 @@
       padding: var(--pico-spacing);
       white-space: pre-line;
     }
+
+    .small-button {
+      padding: inherit;
+    }
+
+    dialog article {
+      padding: 1rem;
+    }
+
+    dialog footer {
+      display: flex;
+      gap: 1rem;
+    }
+
+    dialog footer button {
+      flex: 1;
+      margin-bottom: 0;
+    }
   </style>
 </head>
 
@@ -68,6 +86,20 @@
   <template x-if="message">
     <div class="container notification" x-text="message"></div>
   </template>
+
+  <!-- General Confirmation / Input Dialog -->
+  <dialog :open="confirmDialog.open">
+    <article>
+      <h3 x-text="confirmDialog.message"></h3>
+      <template x-if="confirmDialog.hasInput">
+        <input x-model="confirmDialog.inputValue" :placeholder="confirmDialog.placeholder" />
+      </template>
+      <footer>
+        <button class="outline" @click="closeConfirm(false)">Không</button>
+        <button @click="closeConfirm(true)">Có</button>
+      </footer>
+    </article>
+  </dialog>
 
   <!-- Status Bar -->
   <header class="container">
@@ -77,7 +109,8 @@
           <kbd><span x-text="gnss_mode_text(status.gnss_mode)"></span></kbd>
         </li>
         <li>
-          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            :style="heartbeat ? 'visibility: visible' : 'visibility: hidden'">
             <circle cx="8" cy="8" r="8" fill="darkcyan" />
           </svg>
         </li>
@@ -182,6 +215,48 @@
       </div>
 
       <hr />
+      <!-- List of saved Ntrip connections -->
+      <template x-if="saved_ntrip_list.length > 0">
+        <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+          <table>
+            <thead>
+              <tr>
+                <th><small>Máy chủ</small></th>
+                <th><small>Cổng</small></th>
+                <th><small>Mountpoint</small></th>
+                <th><small>Tài khoản</small></th>
+                <th><small>Mật khẩu</small></th>
+                <th style="width: 10ch;"><small>Thao tác</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(n, idx) in saved_ntrip_list" :key="idx">
+                <tr>
+                  <td>
+                    <small x-text="n.server"></small>
+                  </td>
+                  <td>
+                    <small x-text="n.port"></small>
+                  </td>
+                  <td>
+                    <small x-text="n.mntpoint"></small>
+                  </td>
+                  <td>
+                    <small x-text="n.username"></small>
+                  </td>
+                  <td>
+                    <small x-text="n.password"></small>
+                  </td>
+                  <td style="white-space: nowrap">
+                    <button class="primary small-button" @click="ntripItemApply(n)">&check;</button>
+                    <button class="outline small-button text-red" @click="ntripItemDelete(idx)">&times;</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </details>
 
     <!-- Base Settings, show when Base mode -->
@@ -208,6 +283,44 @@
       </div>
 
       <hr />
+      <!-- List of saved Base positions -->
+      <template x-if="saved_base_list.length > 0">
+        <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+          <table>
+            <thead>
+              <tr>
+                <th><small>Tên</small></th>
+                <th><small>Lat</small></th>
+                <th><small>Lon</small></th>
+                <th><small>Độ cao</small></th>
+                <th style="width: 10ch;"><small>Thao tác</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(b, idx) in saved_base_list" :key="idx">
+                <tr>
+                  <td>
+                    <small x-text="b.name"></small>
+                  </td>
+                  <td>
+                    <small x-text="b.lat"></small>
+                  </td>
+                  <td>
+                    <small x-text="b.lon"></small>
+                  </td>
+                  <td>
+                    <small x-text="b.height"></small>
+                  </td>
+                  <td style="white-space: nowrap">
+                    <button class="primary small-button" @click="baseItemApply(b)">&check;</button>
+                    <button class="outline small-button text-red" @click="baseItemDelete(idx)">&times;</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </details>
 
     <!-- NTRIP Caster, show when Base mode -->
@@ -291,7 +404,7 @@
       </summary>
 
       <div class="grid" style="grid-template-columns: 6rem 1fr; gap: 0; align-items: center">
-        <label>Tên WiFi</label>
+        <label>WiFi</label>
         <input required x-model="config.wifi_ssid" />
 
         <label>Mật khẩu</label>
@@ -304,6 +417,36 @@
       </div>
 
       <hr />
+      <!-- List of saved WiFi points -->
+      <template x-if="saved_wifi_list.length > 0">
+        <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+          <table>
+            <thead>
+              <tr>
+                <th><small>WiFi</small></th>
+                <th><small>Mật khẩu</small></th>
+                <th style="width: 10ch;"><small>Thao tác</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(w, idx) in saved_wifi_list" :key="idx">
+                <tr>
+                  <td>
+                    <small x-text="w.ssid"></small>
+                  </td>
+                  <td>
+                    <small x-text="w.password"></small>
+                  </td>
+                  <td style="white-space: nowrap">
+                    <button class="primary small-button" @click="wifiItemApply(w)">&check;</button>
+                    <button class="outline small-button text-red" @click="wifiItemDelete(idx)">&times;</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </details>
 
     <!-- SDCard, always show -->
@@ -356,10 +499,22 @@
 
     function app() {
       return {
+        heartbeat: false,
         message: "",
         displayMode: "rover",
         config: {}, /* fields are defined in config.c */
         status: {}, /* fields are defined in status.c */
+        saved_wifi_list: [],
+        saved_ntrip_list: [],
+        saved_base_list: [],
+        confirmDialog: {
+          open: false,
+          message: "",
+          hasInput: false,
+          inputValue: "",
+          placeholder: "",
+          onConfirm: null
+        },
         gnss: {
           fix_status: "No Fix",
           sat_num: 0,
@@ -372,6 +527,75 @@
         },
         ws: null,
         ubxBuf: [],
+
+        /* General confirmation and prompt dialog helpers */
+        askConfirm: function (msg, callback) {
+          this.confirmDialog.message = msg;
+          this.confirmDialog.hasInput = false;
+          this.confirmDialog.inputValue = "";
+          this.confirmDialog.placeholder = "";
+          this.confirmDialog.onConfirm = callback;
+          this.confirmDialog.open = true;
+        },
+
+        askInput: function (msg, placeholder, callback) {
+          this.confirmDialog.message = msg;
+          this.confirmDialog.hasInput = true;
+          this.confirmDialog.inputValue = "";
+          this.confirmDialog.placeholder = placeholder || "";
+          this.confirmDialog.onConfirm = callback;
+          this.confirmDialog.open = true;
+        },
+
+        closeConfirm: function (confirmed) {
+          var cb = this.confirmDialog.onConfirm;
+          var val = this.confirmDialog.inputValue;
+          var hasInput = this.confirmDialog.hasInput;
+          this.confirmDialog.open = false;
+          this.confirmDialog.message = "";
+          this.confirmDialog.hasInput = false;
+          this.confirmDialog.inputValue = "";
+          this.confirmDialog.placeholder = "";
+          this.confirmDialog.onConfirm = null;
+          if (confirmed && typeof cb === "function") {
+            if (hasInput) {
+              cb(val);
+            } else {
+              cb();
+            }
+          }
+        },
+
+        /* Reusable XMLHttpRequest helper for older browser compatibility */
+        httpRequest: function (method, url, data, onSuccess, onError) {
+          var xhr = new XMLHttpRequest();
+          xhr.open(method, url, true);
+          if (data !== null && data !== undefined) {
+            xhr.setRequestHeader("Content-Type", "application/json");
+          }
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status >= 200 && xhr.status < 300) {
+              var res = null;
+              if (xhr.responseText) {
+                try {
+                  res = JSON.parse(xhr.responseText);
+                } catch (e) {
+                  console.error("Invalid JSON response:", e);
+                }
+              }
+              if (typeof onSuccess === "function") {
+                onSuccess(res);
+              }
+            } else {
+              console.error("HTTP " + method + " " + url + " failed: " + xhr.status);
+              if (typeof onError === "function") {
+                onError(xhr.status);
+              }
+            }
+          };
+          xhr.send((data !== null && data !== undefined) ? JSON.stringify(data) : null);
+        },
 
         /* Switch active configuration view tab */
         setDisplayMode: function (mode) {
@@ -538,21 +762,208 @@
         /* Fetch initial configuration via XMLHttpRequest (compatible with older Android/Chrome) */
         fetchConfig: function () {
           var self = this;
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", "/api/config", true);
-          xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4) return;
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                self.config = JSON.parse(xhr.responseText);
-              } catch (e) {
-                console.error("Invalid config JSON:", e);
-              }
-            } else {
-              console.error("Failed to fetch config: HTTP " + xhr.status);
+          this.httpRequest("GET", "/api/config", null, function (res) {
+            if (res) {
+              self.config = res;
             }
+          });
+        },
+
+        /* Fetch saved WiFi list from storage */
+        fetchWifiList: function () {
+          var self = this;
+          this.httpRequest("GET", "/api/wifi", null, function (res) {
+            if (res && Array.isArray(res.data)) {
+              self.saved_wifi_list = res.data;
+            } else {
+              self.saved_wifi_list = [];
+            }
+          });
+        },
+
+        /* Connect to WiFi with confirmation prompt */
+        wifiConnect: function () {
+          var self = this;
+          if (!this.config.wifi_ssid) return;
+          this.askConfirm("Kết nối tới WiFi: " + this.config.wifi_ssid + "?", function () {
+            self.httpRequest("POST", "/api/wifi", {
+              command: "connect",
+              ssid: self.config.wifi_ssid,
+              password: self.config.wifi_password || ""
+            });
+          });
+        },
+
+        /* Save WiFi credentials to saved list and storage */
+        wifiSave: function () {
+          var self = this;
+          if (!this.config.wifi_ssid) return;
+          var entry = {
+            ssid: this.config.wifi_ssid,
+            password: this.config.wifi_password || ""
           };
-          xhr.send();
+          this.saved_wifi_list.push(entry);
+          this.httpRequest("POST", "/api/wifi", {
+            command: "save",
+            ssid: entry.ssid,
+            password: entry.password
+          }, null, function () {
+            self.fetchWifiList();
+          });
+        },
+
+        /* Copy saved WiFi entry to WiFi config inputs */
+        wifiItemApply: function (w) {
+          if (!w) return;
+          this.config.wifi_ssid = w.ssid || "";
+          this.config.wifi_password = w.password || "";
+        },
+
+        /* Delete saved WiFi entry by index */
+        wifiItemDelete: function (idx) {
+          var self = this;
+          if (idx < 0 || idx >= this.saved_wifi_list.length) return;
+          var target = this.saved_wifi_list[idx];
+          this.askConfirm("Xóa WiFi đã lưu: " + target.ssid + "?", function () {
+            self.saved_wifi_list.splice(idx, 1);
+            self.httpRequest("POST", "/api/wifi", {
+              command: "delete",
+              index: idx
+            }, null, function () {
+              self.fetchWifiList();
+            });
+          });
+        },
+
+        /* Fetch saved NTRIP list from storage */
+        fetchNtripList: function () {
+          var self = this;
+          this.httpRequest("GET", "/api/ntrip", null, function (res) {
+            if (res && Array.isArray(res.data)) {
+              self.saved_ntrip_list = res.data;
+            } else {
+              self.saved_ntrip_list = [];
+            }
+          });
+        },
+
+        /* Save NTRIP connection to saved list and storage */
+        ntripClientSave: function () {
+          var self = this;
+          if (!this.config.ntrip_server || !this.config.ntrip_port) return;
+          var entry = {
+            server: this.config.ntrip_server,
+            port: "" + this.config.ntrip_port,
+            mntpoint: this.config.ntrip_mntpoint || "",
+            username: this.config.ntrip_username || "",
+            password: this.config.ntrip_password || ""
+          };
+          this.saved_ntrip_list.push(entry);
+          this.httpRequest("POST", "/api/ntrip", {
+            command: "save",
+            server: entry.server,
+            port: entry.port,
+            mntpoint: entry.mntpoint,
+            username: entry.username,
+            password: entry.password
+          }, null, function () {
+            self.fetchNtripList();
+          });
+        },
+
+        /* Copy saved NTRIP entry to NTRIP config inputs */
+        ntripItemApply: function (n) {
+          if (!n) return;
+          this.config.ntrip_server = n.server || "";
+          this.config.ntrip_port = n.port || "";
+          this.config.ntrip_mntpoint = n.mntpoint || "";
+          this.config.ntrip_username = n.username || "";
+          this.config.ntrip_password = n.password || "";
+        },
+
+        /* Delete saved NTRIP entry by index */
+        ntripItemDelete: function (idx) {
+          var self = this;
+          if (idx < 0 || idx >= this.saved_ntrip_list.length) return;
+          var target = this.saved_ntrip_list[idx];
+          this.askConfirm("Xóa NTRIP đã lưu: " + target.server + ":" + target.port + "/" + target.mntpoint + "?", function () {
+            self.saved_ntrip_list.splice(idx, 1);
+            self.httpRequest("POST", "/api/ntrip", {
+              command: "delete",
+              index: idx
+            }, null, function () {
+              self.fetchNtripList();
+            });
+          });
+        },
+
+        /* Fetch saved Base positions list from storage */
+        fetchBaseList: function () {
+          var self = this;
+          this.httpRequest("GET", "/api/base", null, function (res) {
+            if (res && Array.isArray(res.data)) {
+              self.saved_base_list = res.data;
+            } else {
+              self.saved_base_list = [];
+            }
+          });
+        },
+
+        /* Save Base position to saved list and storage */
+        baseSave: function () {
+          var self = this;
+          if (!this.config.base_lat || !this.config.base_lon || !this.config.base_height) return;
+          this.askInput("Nhập tên tọa độ Base:", "Tên điểm Base", function (name) {
+            if (!name) return;
+            var entry = {
+              name: "" + name,
+              lat: "" + self.config.base_lat,
+              lon: "" + self.config.base_lon,
+              height: "" + self.config.base_height
+            };
+            self.saved_base_list.push(entry);
+            self.httpRequest("POST", "/api/base", {
+              command: "save",
+              name: entry.name,
+              lat: entry.lat,
+              lon: entry.lon,
+              height: entry.height
+            }, null, function () {
+              self.fetchBaseList();
+            });
+          });
+        },
+
+        /* Copy saved Base entry to Base config inputs */
+        baseItemApply: function (b) {
+          if (!b) return;
+          this.config.base_lat = b.lat || "";
+          this.config.base_lon = b.lon || "";
+          this.config.base_height = b.height || "";
+        },
+
+        /* Delete saved Base entry by index */
+        baseItemDelete: function (idx) {
+          var self = this;
+          if (idx < 0 || idx >= this.saved_base_list.length) return;
+          var target = this.saved_base_list[idx];
+          this.askConfirm("Xóa tọa độ Base đã lưu: " + (target.name || target.lat) + "?", function () {
+            self.saved_base_list.splice(idx, 1);
+            self.httpRequest("POST", "/api/base", {
+              command: "delete",
+              index: idx
+            }, null, function () {
+              self.fetchBaseList();
+            });
+          });
+        },
+
+        /* Copy current GNSS position into Base config inputs */
+        setBaseAtCurrentPosition: function () {
+          if (!this.gnss.latitude || !this.gnss.longitude || !this.gnss.height) return;
+          this.config.base_lat = this.gnss.latitude;
+          this.config.base_lon = this.gnss.longitude;
+          this.config.base_height = this.gnss.height;
         },
 
         /* Connect to WebSocket for real-time JSON status and binary UBX stream */
@@ -565,6 +976,8 @@
           self.ws = ws;
 
           ws.onmessage = function (evt) {
+            self.heartbeat = !self.heartbeat;
+            console.log("WS message");
             if (typeof evt.data === "string") {
               try {
                 self.status = JSON.parse(evt.data);
@@ -578,7 +991,8 @@
 
           /* Auto-reconnect after 2 seconds on disconnect */
           ws.onclose = function () {
-            console.log("WS close")
+            self.heartbeat = false;
+            console.log("WS close");
             self.ws = null;
             setTimeout(function () {
               self.connectWebSocket();
@@ -586,13 +1000,17 @@
           };
 
           ws.onerror = function () {
-            console.log("WS error")
+            self.heartbeat = false;
+            console.log("WS error");
             ws.close();
           };
         },
 
         init: function () {
           this.fetchConfig();
+          this.fetchWifiList();
+          this.fetchNtripList();
+          this.fetchBaseList();
           this.connectWebSocket();
         }
       };

@@ -6,6 +6,7 @@
 #define WWW_BASE_PATH          "/www"
 #define SERVER_FILE_PATH_MAX   256
 #define SERVER_FILE_BUF_LEN    4096
+#define SERVER_REQ_BUF_LEN     512
 #define SERVER_UART_BUF_LEN    1024
 #define SERVER_WS_CLIENTS_MAX  16
 #define SERVER_UART_TIMEOUT_MS 100
