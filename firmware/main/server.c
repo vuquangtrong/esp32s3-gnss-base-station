@@ -763,19 +763,23 @@ static esp_err_t server_handle_firmware_post(httpd_req_t* req)
     return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
 }
 
+static esp_err_t server_ws_post_handshake(httpd_req_t* req)
+{
+    if (req != NULL)
+    {
+        ESP_LOGI(TAG, "WebSocket client connected (fd=%d)", httpd_req_to_sockfd(req));
+    }
+    // ESP-IDF consumes the upgrade GET internally and never calls server_handle_ws()
+    // for it, so this callback is the reliable place to signal a new client.
+    g_ws_client_joined = true;
+    return ESP_OK;
+}
+
 static esp_err_t server_handle_ws(httpd_req_t* req)
 {
     if (req == NULL)
     {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    // Initial HTTP GET request completes the WebSocket upgrade handshake
-    if (req->method == HTTP_GET)
-    {
-        ESP_LOGI(TAG, "WebSocket client connected (fd=%d)", httpd_req_to_sockfd(req));
-        g_ws_client_joined = true;
-        return ESP_OK;
     }
 
     httpd_ws_frame_t ws_pkt = {0};
@@ -1101,6 +1105,7 @@ esp_err_t server_init(void)
         .method = HTTP_GET,
         .handler = server_handle_ws,
         .is_websocket = true,
+        .ws_post_handshake_cb = server_ws_post_handshake,
     };
     httpd_register_uri_handler(g_server, &uri_ws);
 
