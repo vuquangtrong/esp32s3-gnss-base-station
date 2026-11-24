@@ -8,6 +8,7 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "ntrip_caster.h"
 #include "ntrip_client.h"
 #include "status.h"
 #include "uart.h"
@@ -104,6 +105,7 @@ static esp_err_t gnss_set_default_messages(void)
 
 esp_err_t gnss_set_mode_rover(void)
 {
+    ntrip_caster_stop();
     ntrip_client_disconnect();
     ESP_RETURN_ON_ERROR(gnss_set_default_messages(), TAG, "Failed to set default messages");
     ESP_LOGI(TAG, "Setting GNSS mode to ROVER");
@@ -146,6 +148,7 @@ esp_err_t gnss_set_mode_base(
         return ESP_ERR_INVALID_ARG;
     }
 
+    ntrip_caster_stop();
     ntrip_client_disconnect();
     ntrip_client_stop_gga_task();
 
@@ -216,6 +219,7 @@ esp_err_t gnss_set_mode_base(
     };
     ESP_GOTO_ON_ERROR(gnss_send_commands(rtcm_cmds, sizeof(rtcm_cmds) / sizeof(rtcm_cmds[0])), fail, TAG, "Failed to configure RTCM3");
 
+    ntrip_caster_start();
     status_set_int(STT_GNSS_MODE, GNSS_BASE);
     return ESP_OK;
 
@@ -237,6 +241,7 @@ esp_err_t gnss_set_mode_ppp(
         return ESP_ERR_INVALID_ARG;
     }
 
+    ntrip_caster_stop();
     ntrip_client_disconnect();
     ntrip_client_stop_gga_task();
 

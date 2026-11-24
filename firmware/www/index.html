@@ -347,7 +347,7 @@
 
       <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: center">
         <label>Máy chủ</label>
-        <input readonly value="192.168.4.1" />
+        <input readonly :value="status.wifi_ip_addr ? '192.168.4.1 / ' + status.wifi_ip_addr : '192.168.4.1'" />
 
         <label>Cổng</label>
         <input readonly value="2101" />

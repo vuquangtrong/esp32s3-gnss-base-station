@@ -12,6 +12,7 @@ set(srcs
     wifi.c
     server.c
     ntrip_client.c
+    ntrip_caster.c
     main.c
 )
 

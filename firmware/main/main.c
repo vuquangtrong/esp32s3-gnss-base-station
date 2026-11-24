@@ -6,6 +6,7 @@
 #include "factory_test.h"
 #include "fw_update.h"
 #include "gnss.h"
+#include "ntrip_caster.h"
 #include "sdcard.h"
 #include "server.h"
 #include "status.h"
@@ -31,6 +32,7 @@ void app_main(void)
     ESP_ERROR_CHECK(gnss_set_mode_rover());
     ESP_ERROR_CHECK(wifi_init());
     ESP_ERROR_CHECK(server_init());
+    ESP_ERROR_CHECK(ntrip_caster_init());
 
     printf("app=%s, www=%s\n", fw_update_get_active_app(), fw_update_get_active_www());
     printf("%s\n", config_get_all());
