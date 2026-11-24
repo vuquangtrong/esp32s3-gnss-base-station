@@ -133,6 +133,102 @@ static const char* server_content_type(const char* filepath)
     return "application/octet-stream";
 }
 
+static esp_err_t server_send_json_ok(httpd_req_t* req)
+{
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+}
+
+static esp_err_t server_send_storage_file(httpd_req_t* req, const char* filepath)
+{
+    if (req == NULL || filepath == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    char* content = storage_file_read(filepath);
+    if (content == NULL)
+    {
+        return httpd_resp_sendstr(req, "{\"data\":[]}");
+    }
+
+    esp_err_t ret = httpd_resp_sendstr(req, content);
+    free(content);
+    return ret;
+}
+
+static cJSON* server_parse_json_body(httpd_req_t* req)
+{
+    if (req == NULL)
+    {
+        return NULL;
+    }
+
+    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
+        return NULL;
+    }
+
+    size_t total = 0;
+    while (total < req->content_len)
+    {
+        int received = httpd_req_recv(req, g_req_buf + total, req->content_len - total);
+        if (received <= 0)
+        {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
+            return NULL;
+        }
+        total += (size_t)received;
+    }
+    g_req_buf[total] = '\0';
+
+    cJSON* root = cJSON_Parse(g_req_buf);
+    if (!cJSON_IsObject(root))
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return NULL;
+    }
+
+    return root;
+}
+
+static const char* server_json_get_str(const cJSON* obj, const char* key, const char* def_val)
+{
+    const cJSON* item = cJSON_GetObjectItem(obj, key);
+    return (cJSON_IsString(item) && item->valuestring != NULL) ? item->valuestring : def_val;
+}
+
+static esp_err_t server_storage_save_object(const char* filepath, cJSON* entry)
+{
+    if (entry == NULL)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+
+    esp_err_t err = ESP_ERR_NO_MEM;
+    char* entry_str = cJSON_PrintUnformatted(entry);
+    if (entry_str != NULL)
+    {
+        err = storage_file_write_entry(filepath, entry_str);
+        cJSON_free(entry_str);
+    }
+    cJSON_Delete(entry);
+    return err;
+}
+
+static esp_err_t server_storage_delete_index(const char* filepath, const cJSON* root)
+{
+    const cJSON* idx_item = cJSON_GetObjectItem(root, "index");
+    if (!cJSON_IsNumber(idx_item) || idx_item->valueint < 0 || idx_item->valueint > UINT8_MAX)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return storage_file_delete_entry(filepath, (uint8_t)idx_item->valueint);
+}
+
 static esp_err_t server_handle_config_get(httpd_req_t* req)
 {
     if (req == NULL)
@@ -157,37 +253,14 @@ static esp_err_t server_handle_sdcard_get(httpd_req_t* req)
 
 static esp_err_t server_handle_sdcard_post(httpd_req_t* req)
 {
-    if (req == NULL)
+    cJSON* root = server_parse_json_body(req);
+    if (root == NULL)
     {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, g_req_buf, req->content_len);
-    if (received <= 0 || (size_t)received != req->content_len)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
-        return ESP_FAIL;
-    }
-    g_req_buf[received] = '\0';
-
-    cJSON* root = cJSON_Parse(g_req_buf);
-    if (!cJSON_IsObject(root))
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    const cJSON* cmd_item = cJSON_GetObjectItem(root, "command");
-    const cJSON* file_item = cJSON_GetObjectItem(root, "file");
-    const char* cmd = cJSON_IsString(cmd_item) ? cmd_item->valuestring : NULL;
-    const char* file = cJSON_IsString(file_item) ? file_item->valuestring : NULL;
+    const char* cmd = server_json_get_str(root, "command", NULL);
+    const char* file = server_json_get_str(root, "file", NULL);
 
     if (cmd == NULL || strcmp(cmd, "delete") != 0 || file == NULL || file[0] == '\0')
     {
@@ -196,8 +269,7 @@ static esp_err_t server_handle_sdcard_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    if (status_get_int(STT_LOGGER_STATUS) == LOGGER_RUNNING &&
-        strcmp(file, status_get_str(STT_LOGGER_FILE)) == 0)
+    if (status_get_int(STT_LOGGER_STATUS) == LOGGER_RUNNING && strcmp(file, status_get_str(STT_LOGGER_FILE)) == 0)
     {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Cannot delete the active log file");
@@ -214,54 +286,30 @@ static esp_err_t server_handle_sdcard_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_handle_logger_post(httpd_req_t* req)
 {
-    if (req == NULL)
+    cJSON* root = server_parse_json_body(req);
+    if (root == NULL)
     {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, g_req_buf, req->content_len);
-    if (received <= 0 || (size_t)received != req->content_len)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
-        return ESP_FAIL;
-    }
-    g_req_buf[received] = '\0';
-
-    cJSON* root = cJSON_Parse(g_req_buf);
-    if (!cJSON_IsObject(root))
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    const cJSON* cmd_item = cJSON_GetObjectItem(root, "command");
-    if (!cJSON_IsString(cmd_item) || cmd_item->valuestring == NULL || cmd_item->valuestring[0] == '\0')
+    const char* cmd = server_json_get_str(root, "command", NULL);
+    if (cmd == NULL || cmd[0] == '\0')
     {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command");
         return ESP_FAIL;
     }
 
-    const char* cmd = cmd_item->valuestring;
     esp_err_t err = ESP_ERR_INVALID_ARG;
 
     if (strcmp(cmd, "start") == 0)
     {
-        const cJSON* file_item = cJSON_GetObjectItem(root, "file");
-        const char* file = cJSON_IsString(file_item) ? file_item->valuestring : NULL;
+        const char* file = server_json_get_str(root, "file", NULL);
         if (file == NULL || file[0] == '\0')
         {
             cJSON_Delete(root);
@@ -294,75 +342,36 @@ static esp_err_t server_handle_logger_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_handle_wifi_get(httpd_req_t* req)
 {
-    if (req == NULL)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    httpd_resp_set_type(req, "application/json");
-    char* content = storage_file_read(STORAGE_WIFI_FILE);
-    if (content == NULL)
-    {
-        return httpd_resp_sendstr(req, "{\"data\":[]}");
-    }
-
-    esp_err_t ret = httpd_resp_sendstr(req, content);
-    free(content);
-    return ret;
+    return server_send_storage_file(req, STORAGE_WIFI_FILE);
 }
 
 static esp_err_t server_handle_wifi_post(httpd_req_t* req)
 {
-    if (req == NULL)
+    cJSON* root = server_parse_json_body(req);
+    if (root == NULL)
     {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, g_req_buf, req->content_len);
-    if (received <= 0 || (size_t)received != req->content_len)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
-        return ESP_FAIL;
-    }
-    g_req_buf[received] = '\0';
-
-    cJSON* root = cJSON_Parse(g_req_buf);
-    if (!cJSON_IsObject(root))
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    const cJSON* cmd_item = cJSON_GetObjectItem(root, "command");
-    if (!cJSON_IsString(cmd_item) || cmd_item->valuestring == NULL)
+    const char* cmd = server_json_get_str(root, "command", NULL);
+    if (cmd == NULL)
     {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command");
         return ESP_FAIL;
     }
 
-    const char* cmd = cmd_item->valuestring;
     esp_err_t err = ESP_ERR_INVALID_ARG;
 
     if (strcmp(cmd, "connect") == 0 || strcmp(cmd, "save") == 0)
     {
-        const cJSON* ssid_item = cJSON_GetObjectItem(root, "ssid");
-        const cJSON* pass_item = cJSON_GetObjectItem(root, "password");
-        const char* ssid = cJSON_IsString(ssid_item) ? ssid_item->valuestring : NULL;
-        const char* password = cJSON_IsString(pass_item) ? pass_item->valuestring : "";
+        const char* ssid = server_json_get_str(root, "ssid", NULL);
+        const char* password = server_json_get_str(root, "password", "");
 
         if (ssid == NULL || ssid[0] == '\0')
         {
@@ -387,23 +396,13 @@ static esp_err_t server_handle_wifi_post(httpd_req_t* req)
             {
                 cJSON_AddStringToObject(entry, "ssid", ssid);
                 cJSON_AddStringToObject(entry, "password", password);
-                char* entry_str = cJSON_PrintUnformatted(entry);
-                if (entry_str != NULL)
-                {
-                    err = storage_file_write_entry(STORAGE_WIFI_FILE, entry_str);
-                    cJSON_free(entry_str);
-                }
-                cJSON_Delete(entry);
             }
+            err = server_storage_save_object(STORAGE_WIFI_FILE, entry);
         }
     }
     else if (strcmp(cmd, "delete") == 0)
     {
-        const cJSON* idx_item = cJSON_GetObjectItem(root, "index");
-        if (cJSON_IsNumber(idx_item) && idx_item->valueint >= 0 && idx_item->valueint <= UINT8_MAX)
-        {
-            err = storage_file_delete_entry(STORAGE_WIFI_FILE, (uint8_t)idx_item->valueint);
-        }
+        err = server_storage_delete_index(STORAGE_WIFI_FILE, root);
     }
 
     cJSON_Delete(root);
@@ -415,82 +414,39 @@ static esp_err_t server_handle_wifi_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_handle_ntrip_get(httpd_req_t* req)
 {
-    if (req == NULL)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    httpd_resp_set_type(req, "application/json");
-    char* content = storage_file_read(STORAGE_NTRIP_FILE);
-    if (content == NULL)
-    {
-        return httpd_resp_sendstr(req, "{\"data\":[]}");
-    }
-
-    esp_err_t ret = httpd_resp_sendstr(req, content);
-    free(content);
-    return ret;
+    return server_send_storage_file(req, STORAGE_NTRIP_FILE);
 }
 
 static esp_err_t server_handle_ntrip_post(httpd_req_t* req)
 {
-    if (req == NULL)
+    cJSON* root = server_parse_json_body(req);
+    if (root == NULL)
     {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, g_req_buf, req->content_len);
-    if (received <= 0 || (size_t)received != req->content_len)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
-        return ESP_FAIL;
-    }
-    g_req_buf[received] = '\0';
-
-    cJSON* root = cJSON_Parse(g_req_buf);
-    if (!cJSON_IsObject(root))
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    const cJSON* cmd_item = cJSON_GetObjectItem(root, "command");
-    if (!cJSON_IsString(cmd_item) || cmd_item->valuestring == NULL)
+    const char* cmd = server_json_get_str(root, "command", NULL);
+    if (cmd == NULL)
     {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command");
         return ESP_FAIL;
     }
 
-    const char* cmd = cmd_item->valuestring;
     esp_err_t err = ESP_ERR_INVALID_ARG;
 
     if (strcmp(cmd, "query") == 0 || strcmp(cmd, "connect") == 0 || strcmp(cmd, "save") == 0)
     {
-        const cJSON* server_item = cJSON_GetObjectItem(root, "server");
-        const cJSON* port_item = cJSON_GetObjectItem(root, "port");
-        const cJSON* mnt_item = cJSON_GetObjectItem(root, "mntpoint");
-        const cJSON* user_item = cJSON_GetObjectItem(root, "username");
-        const cJSON* pass_item = cJSON_GetObjectItem(root, "password");
-
-        const char* server = cJSON_IsString(server_item) ? server_item->valuestring : NULL;
-        const char* port = cJSON_IsString(port_item) ? port_item->valuestring : NULL;
-        const char* mntpoint = cJSON_IsString(mnt_item) ? mnt_item->valuestring : "";
-        const char* username = cJSON_IsString(user_item) ? user_item->valuestring : "";
-        const char* password = cJSON_IsString(pass_item) ? pass_item->valuestring : "";
+        const char* server = server_json_get_str(root, "server", NULL);
+        const char* port = server_json_get_str(root, "port", NULL);
+        const char* mntpoint = server_json_get_str(root, "mntpoint", "");
+        const char* username = server_json_get_str(root, "username", "");
+        const char* password = server_json_get_str(root, "password", "");
 
         char* endptr = NULL;
         unsigned long port_num = (port != NULL && port[0] != '\0') ? strtoul(port, &endptr, 10) : 0;
@@ -547,14 +503,8 @@ static esp_err_t server_handle_ntrip_post(httpd_req_t* req)
                 cJSON_AddStringToObject(entry, "mntpoint", mntpoint);
                 cJSON_AddStringToObject(entry, "username", username);
                 cJSON_AddStringToObject(entry, "password", password);
-                char* entry_str = cJSON_PrintUnformatted(entry);
-                if (entry_str != NULL)
-                {
-                    err = storage_file_write_entry(STORAGE_NTRIP_FILE, entry_str);
-                    cJSON_free(entry_str);
-                }
-                cJSON_Delete(entry);
             }
+            err = server_storage_save_object(STORAGE_NTRIP_FILE, entry);
         }
     }
     else if (strcmp(cmd, "disconnect") == 0)
@@ -564,11 +514,7 @@ static esp_err_t server_handle_ntrip_post(httpd_req_t* req)
     }
     else if (strcmp(cmd, "delete") == 0)
     {
-        const cJSON* idx_item = cJSON_GetObjectItem(root, "index");
-        if (cJSON_IsNumber(idx_item) && idx_item->valueint >= 0 && idx_item->valueint <= UINT8_MAX)
-        {
-            err = storage_file_delete_entry(STORAGE_NTRIP_FILE, (uint8_t)idx_item->valueint);
-        }
+        err = server_storage_delete_index(STORAGE_NTRIP_FILE, root);
     }
 
     cJSON_Delete(root);
@@ -580,80 +526,38 @@ static esp_err_t server_handle_ntrip_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_handle_base_get(httpd_req_t* req)
 {
-    if (req == NULL)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    httpd_resp_set_type(req, "application/json");
-    char* content = storage_file_read(STORAGE_BASE_FILE);
-    if (content == NULL)
-    {
-        return httpd_resp_sendstr(req, "{\"data\":[]}");
-    }
-
-    esp_err_t ret = httpd_resp_sendstr(req, content);
-    free(content);
-    return ret;
+    return server_send_storage_file(req, STORAGE_BASE_FILE);
 }
 
 static esp_err_t server_handle_base_post(httpd_req_t* req)
 {
-    if (req == NULL)
+    cJSON* root = server_parse_json_body(req);
+    if (root == NULL)
     {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, g_req_buf, req->content_len);
-    if (received <= 0 || (size_t)received != req->content_len)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
-        return ESP_FAIL;
-    }
-    g_req_buf[received] = '\0';
-
-    cJSON* root = cJSON_Parse(g_req_buf);
-    if (!cJSON_IsObject(root))
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    const cJSON* cmd_item = cJSON_GetObjectItem(root, "command");
-    if (!cJSON_IsString(cmd_item) || cmd_item->valuestring == NULL)
+    const char* cmd = server_json_get_str(root, "command", NULL);
+    if (cmd == NULL)
     {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing command");
         return ESP_FAIL;
     }
 
-    const char* cmd = cmd_item->valuestring;
     esp_err_t err = ESP_ERR_INVALID_ARG;
 
     if (strcmp(cmd, "save") == 0)
     {
-        const cJSON* name_item = cJSON_GetObjectItem(root, "name");
-        const cJSON* lat_item = cJSON_GetObjectItem(root, "lat");
-        const cJSON* lon_item = cJSON_GetObjectItem(root, "lon");
-        const cJSON* height_item = cJSON_GetObjectItem(root, "height");
-
-        const char* name = cJSON_IsString(name_item) ? name_item->valuestring : NULL;
-        const char* lat = cJSON_IsString(lat_item) ? lat_item->valuestring : NULL;
-        const char* lon = cJSON_IsString(lon_item) ? lon_item->valuestring : NULL;
-        const char* height = cJSON_IsString(height_item) ? height_item->valuestring : NULL;
+        const char* name = server_json_get_str(root, "name", NULL);
+        const char* lat = server_json_get_str(root, "lat", NULL);
+        const char* lon = server_json_get_str(root, "lon", NULL);
+        const char* height = server_json_get_str(root, "height", NULL);
 
         if (name == NULL || name[0] == '\0' || lat == NULL || lat[0] == '\0' || lon == NULL || lon[0] == '\0' || height == NULL || height[0] == '\0')
         {
@@ -669,22 +573,12 @@ static esp_err_t server_handle_base_post(httpd_req_t* req)
             cJSON_AddStringToObject(entry, "lat", lat);
             cJSON_AddStringToObject(entry, "lon", lon);
             cJSON_AddStringToObject(entry, "height", height);
-            char* entry_str = cJSON_PrintUnformatted(entry);
-            if (entry_str != NULL)
-            {
-                err = storage_file_write_entry(STORAGE_BASE_FILE, entry_str);
-                cJSON_free(entry_str);
-            }
-            cJSON_Delete(entry);
         }
+        err = server_storage_save_object(STORAGE_BASE_FILE, entry);
     }
     else if (strcmp(cmd, "delete") == 0)
     {
-        const cJSON* idx_item = cJSON_GetObjectItem(root, "index");
-        if (cJSON_IsNumber(idx_item) && idx_item->valueint >= 0 && idx_item->valueint <= UINT8_MAX)
-        {
-            err = storage_file_delete_entry(STORAGE_BASE_FILE, (uint8_t)idx_item->valueint);
-        }
+        err = server_storage_delete_index(STORAGE_BASE_FILE, root);
     }
 
     cJSON_Delete(root);
@@ -696,48 +590,24 @@ static esp_err_t server_handle_base_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_handle_gnss_post(httpd_req_t* req)
 {
-    if (req == NULL)
+    cJSON* root = server_parse_json_body(req);
+    if (root == NULL)
     {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
         return ESP_FAIL;
     }
 
-    int received = httpd_req_recv(req, g_req_buf, req->content_len);
-    if (received <= 0 || (size_t)received != req->content_len)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
-        return ESP_FAIL;
-    }
-    g_req_buf[received] = '\0';
-
-    cJSON* root = cJSON_Parse(g_req_buf);
-    if (!cJSON_IsObject(root))
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    const cJSON* mode_item = cJSON_GetObjectItem(root, "mode");
-    if (!cJSON_IsString(mode_item) || mode_item->valuestring == NULL)
+    const char* mode = server_json_get_str(root, "mode", NULL);
+    if (mode == NULL)
     {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing mode");
         return ESP_FAIL;
     }
-
-    const char* mode = mode_item->valuestring;
 
     if (status_get_int(STT_LOGGER_STATUS) == LOGGER_RUNNING)
     {
@@ -754,13 +624,9 @@ static esp_err_t server_handle_gnss_post(httpd_req_t* req)
     }
     else if (strcmp(mode, "base") == 0)
     {
-        const cJSON* lat_item = cJSON_GetObjectItem(root, "lat");
-        const cJSON* lon_item = cJSON_GetObjectItem(root, "lon");
-        const cJSON* height_item = cJSON_GetObjectItem(root, "height");
-
-        const char* lat_str = cJSON_IsString(lat_item) ? lat_item->valuestring : NULL;
-        const char* lon_str = cJSON_IsString(lon_item) ? lon_item->valuestring : NULL;
-        const char* height_str = cJSON_IsString(height_item) ? height_item->valuestring : NULL;
+        const char* lat_str = server_json_get_str(root, "lat", NULL);
+        const char* lon_str = server_json_get_str(root, "lon", NULL);
+        const char* height_str = server_json_get_str(root, "height", NULL);
 
         if (lat_str != NULL && lat_str[0] != '\0' && lon_str != NULL && lon_str[0] != '\0' && height_str != NULL && height_str[0] != '\0')
         {
@@ -786,11 +652,8 @@ static esp_err_t server_handle_gnss_post(httpd_req_t* req)
     }
     else if (strcmp(mode, "ppp") == 0)
     {
-        const cJSON* dur_item = cJSON_GetObjectItem(root, "min_dur");
-        const cJSON* acc_item = cJSON_GetObjectItem(root, "acc_limit");
-
-        const char* dur_str = cJSON_IsString(dur_item) ? dur_item->valuestring : NULL;
-        const char* acc_str = cJSON_IsString(acc_item) ? acc_item->valuestring : NULL;
+        const char* dur_str = server_json_get_str(root, "min_dur", NULL);
+        const char* acc_str = server_json_get_str(root, "acc_limit", NULL);
 
         if (dur_str != NULL && dur_str[0] != '\0' && acc_str != NULL && acc_str[0] != '\0')
         {
@@ -826,8 +689,7 @@ static esp_err_t server_handle_gnss_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_handle_firmware_post(httpd_req_t* req)
@@ -845,8 +707,7 @@ static esp_err_t server_handle_firmware_post(httpd_req_t* req)
         return ESP_FAIL;
     }
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return server_send_json_ok(req);
 }
 
 static esp_err_t server_ws_post_handshake(httpd_req_t* req)
@@ -1102,105 +963,27 @@ esp_err_t server_init(void)
         return ret;
     }
 
-    static const httpd_uri_t uri_config_get = {
-        .uri = "/api/config",
-        .method = HTTP_GET,
-        .handler = server_handle_config_get,
+    static const httpd_uri_t uris[] = {
+        {.uri = "/api/config", .method = HTTP_GET, .handler = server_handle_config_get},
+        {.uri = "/api/sdcard", .method = HTTP_GET, .handler = server_handle_sdcard_get},
+        {.uri = "/api/sdcard", .method = HTTP_POST, .handler = server_handle_sdcard_post},
+        {.uri = "/api/logger", .method = HTTP_POST, .handler = server_handle_logger_post},
+        {.uri = "/api/wifi", .method = HTTP_GET, .handler = server_handle_wifi_get},
+        {.uri = "/api/wifi", .method = HTTP_POST, .handler = server_handle_wifi_post},
+        {.uri = "/api/ntrip", .method = HTTP_GET, .handler = server_handle_ntrip_get},
+        {.uri = "/api/ntrip", .method = HTTP_POST, .handler = server_handle_ntrip_post},
+        {.uri = "/api/base", .method = HTTP_GET, .handler = server_handle_base_get},
+        {.uri = "/api/base", .method = HTTP_POST, .handler = server_handle_base_post},
+        {.uri = "/api/gnss", .method = HTTP_POST, .handler = server_handle_gnss_post},
+        {.uri = "/api/firmware", .method = HTTP_POST, .handler = server_handle_firmware_post},
+        {.uri = "/ws", .method = HTTP_GET, .handler = server_handle_ws, .is_websocket = true, .ws_post_handshake_cb = server_ws_post_handshake},
+        {.uri = "/*", .method = HTTP_GET, .handler = server_handle_static_get},
     };
-    httpd_register_uri_handler(g_server, &uri_config_get);
 
-    static const httpd_uri_t uri_sdcard_get = {
-        .uri = "/api/sdcard",
-        .method = HTTP_GET,
-        .handler = server_handle_sdcard_get,
-    };
-    httpd_register_uri_handler(g_server, &uri_sdcard_get);
-
-    static const httpd_uri_t uri_sdcard_post = {
-        .uri = "/api/sdcard",
-        .method = HTTP_POST,
-        .handler = server_handle_sdcard_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_sdcard_post);
-
-    static const httpd_uri_t uri_logger_post = {
-        .uri = "/api/logger",
-        .method = HTTP_POST,
-        .handler = server_handle_logger_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_logger_post);
-
-    static const httpd_uri_t uri_wifi_get = {
-        .uri = "/api/wifi",
-        .method = HTTP_GET,
-        .handler = server_handle_wifi_get,
-    };
-    httpd_register_uri_handler(g_server, &uri_wifi_get);
-
-    static const httpd_uri_t uri_wifi_post = {
-        .uri = "/api/wifi",
-        .method = HTTP_POST,
-        .handler = server_handle_wifi_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_wifi_post);
-
-    static const httpd_uri_t uri_ntrip_get = {
-        .uri = "/api/ntrip",
-        .method = HTTP_GET,
-        .handler = server_handle_ntrip_get,
-    };
-    httpd_register_uri_handler(g_server, &uri_ntrip_get);
-
-    static const httpd_uri_t uri_ntrip_post = {
-        .uri = "/api/ntrip",
-        .method = HTTP_POST,
-        .handler = server_handle_ntrip_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_ntrip_post);
-
-    static const httpd_uri_t uri_base_get = {
-        .uri = "/api/base",
-        .method = HTTP_GET,
-        .handler = server_handle_base_get,
-    };
-    httpd_register_uri_handler(g_server, &uri_base_get);
-
-    static const httpd_uri_t uri_base_post = {
-        .uri = "/api/base",
-        .method = HTTP_POST,
-        .handler = server_handle_base_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_base_post);
-
-    static const httpd_uri_t uri_gnss_post = {
-        .uri = "/api/gnss",
-        .method = HTTP_POST,
-        .handler = server_handle_gnss_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_gnss_post);
-
-    static const httpd_uri_t uri_firmware_post = {
-        .uri = "/api/firmware",
-        .method = HTTP_POST,
-        .handler = server_handle_firmware_post,
-    };
-    httpd_register_uri_handler(g_server, &uri_firmware_post);
-
-    static const httpd_uri_t uri_ws = {
-        .uri = "/ws",
-        .method = HTTP_GET,
-        .handler = server_handle_ws,
-        .is_websocket = true,
-        .ws_post_handshake_cb = server_ws_post_handshake,
-    };
-    httpd_register_uri_handler(g_server, &uri_ws);
-
-    static const httpd_uri_t uri_static_get = {
-        .uri = "/*",
-        .method = HTTP_GET,
-        .handler = server_handle_static_get,
-    };
-    httpd_register_uri_handler(g_server, &uri_static_get);
+    for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++)
+    {
+        httpd_register_uri_handler(g_server, &uris[i]);
+    }
 
     if (xTaskCreate(server_ws_task, "server_ws", 4096, NULL, 5, NULL) != pdPASS)
     {

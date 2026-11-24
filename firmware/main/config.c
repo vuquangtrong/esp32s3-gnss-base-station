@@ -17,6 +17,7 @@ static const char* NVS_NAMESPACE = "gnss_config";
 
 static nvs_handle_t g_nvs_handle = 0;
 static bool g_config_initialized = false;
+static bool g_config_changed = true;
 static char g_json[CFG_JSON_LENGTH_MAX];
 
 // Runtime configuration storage with fixed-size buffers,
@@ -170,6 +171,7 @@ esp_err_t config_set(config_type_t key, const char* value)
     }
 
     strlcpy(g_configs[key].value, value, sizeof(g_configs[key].value));
+    g_config_changed = true;
     ESP_LOGI(TAG, "Config %s updated", g_configs[key].name);
 
     return ESP_OK;
@@ -187,6 +189,11 @@ const char* config_get(config_type_t key)
 
 const char* config_get_all(void)
 {
+    if (!g_config_changed && g_json[0] != '\0')
+    {
+        return g_json;
+    }
+
     cJSON* root = cJSON_CreateObject();
     if (root == NULL)
     {
@@ -213,5 +220,6 @@ const char* config_get_all(void)
         return "{}";
     }
 
+    g_config_changed = false;
     return g_json;
 }

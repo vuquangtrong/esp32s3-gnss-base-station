@@ -139,7 +139,7 @@
   <main class="container">
 
     <!-- GNSS Position, always show -->
-    <details name="card_gnss_position" open>
+    <details open>
       <summary role="button" class="outline contrast">
         <strong>Tọa độ GNSS</strong>
         <span x-text="gnss.date_time"></span>
@@ -173,7 +173,7 @@
     </div>
 
     <!-- Rover Settings, show when Rover mode -->
-    <details name="card_rover_settings" open x-show="displayMode === 'rover'">
+    <details open x-show="displayMode === 'rover'">
       <summary role="button" class="outline contrast">
         <strong>Cài đặt Rover</strong>
         <button class="outline" @click.stop="setGnssMode('rover')">Kích hoạt chế độ Rover</button>
@@ -181,7 +181,7 @@
     </details>
 
     <!-- NTRIP Client, show in Rover mode -->
-    <details name="card_ntrip_client" open x-show="displayMode === 'rover'">
+    <details open x-show="displayMode === 'rover'">
       <summary role="button" class="outline contrast">
         <strong>NTRIP Client</strong>
         <span x-text="conn_status_text(status.ntrip_client_status)"
@@ -271,7 +271,7 @@
     </details>
 
     <!-- Base Settings, show when Base mode -->
-    <details name="card_base_settings" open x-show="displayMode === 'base'">
+    <details open x-show="displayMode === 'base'">
       <summary role="button" class="outline contrast">
         <strong>Cài đặt Base</strong>
         <button class="outline" @click.stop="setGnssMode('base')">Kích hoạt chế độ Base</button>
@@ -281,7 +281,7 @@
         <label>Vĩ độ (Lat)</label>
         <input required x-model="config.base_lat" />
 
-        <label>Kinh độ (lon)</label>
+        <label>Kinh độ (Lon)</label>
         <input required x-model="config.base_lon" />
 
         <label>Độ cao</label>
@@ -335,7 +335,7 @@
     </details>
 
     <!-- NTRIP Caster, show when Base mode -->
-    <details name="card_ntrip_server" open x-show="displayMode === 'base'">
+    <details open x-show="displayMode === 'base'">
       <summary role="button" class="outline contrast">
         <strong>NTRIP Caster</strong>
         <span x-text="conn_status_text(status.ntrip_server_status)"
@@ -364,7 +364,7 @@
     </details>
 
     <!-- PPP Settings, show when PPP mode -->
-    <details name="card_ppp_settings" open x-show="displayMode === 'ppp'">
+    <details open x-show="displayMode === 'ppp'">
       <summary role="button" class="outline contrast">
         <strong>Cài đặt PPP</strong>
         <button class="outline" @click.stop="setGnssMode('ppp')">Kích hoạt chế độ PPP</button>
@@ -386,7 +386,7 @@
     </details>
 
     <!-- Logger, show when PPP mode -->
-    <details name="card_logger" open x-show="displayMode === 'ppp'">
+    <details open x-show="displayMode === 'ppp'">
       <summary role="button" class="outline contrast">
         <strong>Ghi dữ liệu</strong>
         <span x-text="logger_status_text(status.logger_status)" :class="logger_status_class(status.logger_status)">
@@ -398,7 +398,7 @@
         <input readonly x-model="status.logger_file" />
 
         <label>Dung lượng</label>
-        <input readonly x-model="file_size_text(status.logger_size)" />
+        <input readonly :value="file_size_text(status.logger_size)" />
 
         <div></div>
         <div class="grid">
@@ -411,7 +411,7 @@
     </details>
 
     <!-- WiFi Settings, always show -->
-    <details name="card_wifi" open>
+    <details open>
       <summary role="button" class="outline contrast">
         <strong>WiFi</strong>
         <span x-text="conn_status_text(status.wifi_status)" :class="conn_status_class(status.wifi_status)"></span>
@@ -465,7 +465,7 @@
     </details>
 
     <!-- SDCard, always show -->
-    <details name="card_sdcard" open>
+    <details open>
       <summary role="button" class="outline contrast">
         <strong>Thẻ nhớ SD</strong>
         <span x-text="sdcard_status_text(status.sdcard_status)" :class="sdcard_status_class(status.sdcard_status)">
@@ -504,7 +504,7 @@
     </details>
 
     <!-- System, always show -->
-    <details name="card_system">
+    <details>
       <summary role="button" class="outline contrast">
         <strong>Hệ thống</strong>
         <span></span>
@@ -513,7 +513,8 @@
       <div class="grid" style="grid-template-columns: 1fr 1fr; align-items: baseline">
         <span></span>
         <button class="outline" x-show="status.fw_update_available" :disabled="status.fw_update_status !== 0"
-          @click="updateFirmware()" x-text="fw_update_status_text(status.fw_update_status)"></button>
+          :class="fw_update_status_class(status.fw_update_status)" @click="updateFirmware()"
+          x-text="fw_update_status_text(status.fw_update_status)"></button>
       </div>
     </details>
   </main>
@@ -582,34 +583,26 @@
         ubxBuf: [],
 
         /* General confirmation, prompt and message dialog helpers */
-        askConfirm: function (msg, callback) {
+        openDialog: function (msg, hasConfirm, hasInput, placeholder, callback) {
           this.dialog.open = true;
           this.dialog.message = msg;
-          this.dialog.hasConfirm = true;
-          this.dialog.onConfirm = callback;
-          this.dialog.hasInput = false;
-          this.dialog.inputValue = "";
-          this.dialog.placeholder = "";
-        },
-
-        askInput: function (msg, placeholder, callback) {
-          this.dialog.open = true;
-          this.dialog.message = msg;
-          this.dialog.hasConfirm = true;
-          this.dialog.onConfirm = callback;
-          this.dialog.hasInput = true;
+          this.dialog.hasConfirm = hasConfirm;
+          this.dialog.onConfirm = (typeof callback === "function") ? callback : null;
+          this.dialog.hasInput = hasInput;
           this.dialog.inputValue = "";
           this.dialog.placeholder = placeholder || "";
         },
 
+        askConfirm: function (msg, callback) {
+          this.openDialog(msg, true, false, "", callback);
+        },
+
+        askInput: function (msg, placeholder, callback) {
+          this.openDialog(msg, true, true, placeholder, callback);
+        },
+
         showMessage: function (msg, onOk) {
-          this.dialog.open = true;
-          this.dialog.message = msg;
-          this.dialog.hasConfirm = false;
-          this.dialog.onConfirm = (typeof onOk === "function") ? onOk : null;
-          this.dialog.hasInput = false;
-          this.dialog.inputValue = "";
-          this.dialog.placeholder = "";
+          this.openDialog(msg, false, false, "", onOk);
         },
 
         closeConfirm: function (confirmed) {
@@ -617,13 +610,8 @@
           var val = this.dialog.inputValue;
           var hasInput = this.dialog.hasInput;
           var hasConfirm = this.dialog.hasConfirm;
+          this.openDialog("", false, false, "", null);
           this.dialog.open = false;
-          this.dialog.message = "";
-          this.dialog.hasConfirm = false;
-          this.dialog.onConfirm = null;
-          this.dialog.hasInput = false;
-          this.dialog.inputValue = "";
-          this.dialog.placeholder = "";
           if ((confirmed || !hasConfirm) && typeof cb === "function") {
             if (hasInput) {
               cb(val);
@@ -725,11 +713,50 @@
           this.askLoggerFilename();
         },
 
+        /* Validate Base coordinates: lat [-90, 90], lon [-180, 180], height [-100000, 100000] */
+        validBaseCoords: function (lat, lon, height) {
+          var la = parseFloat(lat);
+          var lo = parseFloat(lon);
+          var h = parseFloat(height);
+          return !isNaN(la) && la >= -90 && la <= 90 &&
+            !isNaN(lo) && lo >= -180 && lo <= 180 &&
+            !isNaN(h) && Math.abs(h) <= 100000;
+        },
+
+        /* Check if Base position is within ~100m horizontal and 100m vertical of current GNSS position */
+        isBaseCloseToCurrent: function (lat, lon, height) {
+          if (this.gnss.fix_status === "NO FIX" || !this.gnss.latitude || !this.gnss.longitude || !this.gnss.height) {
+            return false;
+          }
+          var curLat = parseFloat(this.gnss.latitude);
+          var curLon = parseFloat(this.gnss.longitude);
+          var curHeight = parseFloat(this.gnss.height);
+          var baseLat = parseFloat(lat);
+          var baseLon = parseFloat(lon);
+          var baseHeight = parseFloat(height);
+          if (isNaN(curLat) || isNaN(curLon) || isNaN(curHeight)) {
+            return false;
+          }
+          return Math.abs(baseLat - curLat) <= 0.001 &&
+            Math.abs(baseLon - curLon) <= 0.001 &&
+            Math.abs(baseHeight - curHeight) <= 100;
+        },
+
+        /* Validate TCP port number (1..65535) */
+        validPort: function (port) {
+          var s = this.trimText(port);
+          if (!/^\d+$/.test(s)) return false;
+          var p = parseInt(s, 10);
+          return p >= 1 && p <= 65535;
+        },
+
         /* Confirm a GNSS mode switch, stopping an active logger first when needed */
         switchGnssMode: function (message, payload) {
           var self = this;
           var send = function () {
-            self.httpRequest("POST", "/api/gnss", payload);
+            self.httpRequest("POST", "/api/gnss", payload, null, function () {
+              self.showMessage("Không thể chuyển chế độ GNSS.");
+            });
           };
           if (this.status.logger_status === 1) {
             this.askConfirm("Đang ghi dữ liệu. Dừng ghi trước khi đổi chế độ?", function () {
@@ -762,15 +789,14 @@
             });
           } else if (mode === "base") {
             if (this.status.gnss_mode === 1) return;
-            var lat = parseFloat(this.config.base_lat);
-            var lon = parseFloat(this.config.base_lon);
-            var height = parseFloat(this.config.base_height);
-            if (isNaN(lat) || lat < -90 || lat > 90 ||
-              isNaN(lon) || lon < -180 || lon > 180 ||
-              isNaN(height) || Math.abs(height) > 100000) {
+            if (!this.validBaseCoords(this.config.base_lat, this.config.base_lon, this.config.base_height)) {
+              this.showMessage("Tọa độ Base không hợp lệ.");
               return;
             }
-            this.switchGnssMode("Kích hoạt chế độ Base?", {
+            var confirmMsg = this.isBaseCloseToCurrent(this.config.base_lat, this.config.base_lon, this.config.base_height)
+              ? "Kích hoạt chế độ Base?"
+              : "Tọa độ Base lệch nhiều so với vị trí hiện tại. Tiếp tục kích hoạt chế độ Base?";
+            this.switchGnssMode(confirmMsg, {
               mode: "base",
               lat: "" + self.config.base_lat,
               lon: "" + self.config.base_lon,
@@ -781,6 +807,7 @@
             var minDur = parseInt(this.config.ppp_min_dur, 10);
             var accLimit = parseInt(this.config.ppp_acc_limit, 10);
             if (isNaN(minDur) || minDur <= 0 || isNaN(accLimit) || accLimit <= 0) {
+              this.showMessage("Thông số PPP không hợp lệ.");
               return;
             }
             this.switchGnssMode("Kích hoạt chế độ PPP?", {
@@ -915,7 +942,7 @@
             } else if (fixType === 3) {
               fixText = "3D FIX";
             } else if (fixType === 2) {
-              fixText = "2D FiX";
+              fixText = "2D FIX";
             } else if (fixType === 5) {
               fixText = "TIME FIX";
             }
@@ -1047,12 +1074,15 @@
         /* Connect to WiFi with confirmation prompt */
         wifiConnect: function () {
           var self = this;
-          if (!this.config.wifi_ssid) return;
-          this.askConfirm("Kết nối tới WiFi: " + this.config.wifi_ssid + "?", function () {
+          var ssid = this.trimText(this.config.wifi_ssid);
+          if (!ssid) return;
+          this.askConfirm("Kết nối tới WiFi: " + ssid + "?", function () {
             self.httpRequest("POST", "/api/wifi", {
               command: "connect",
-              ssid: self.config.wifi_ssid,
+              ssid: ssid,
               password: self.config.wifi_password || ""
+            }, null, function () {
+              self.showMessage("Không thể gửi yêu cầu kết nối WiFi.");
             });
           });
         },
@@ -1060,9 +1090,10 @@
         /* Save WiFi credentials to saved list and storage */
         wifiSave: function () {
           var self = this;
-          if (!this.config.wifi_ssid) return;
+          var ssid = this.trimText(this.config.wifi_ssid);
+          if (!ssid) return;
           var entry = {
-            ssid: this.config.wifi_ssid,
+            ssid: ssid,
             password: this.config.wifi_password || ""
           };
           this.saved_wifi_list.push(entry);
@@ -1130,12 +1161,17 @@
         ntripClientQueryMntpoints: function () {
           var self = this;
           if (this.status.ntrip_client_status !== 0) return;
-          if (!this.config.ntrip_server || !this.config.ntrip_port) return;
-          this.askConfirm("Tra cứu điểm phát từ: " + this.config.ntrip_server + ":" + this.config.ntrip_port + "?", function () {
+          var server = this.trimText(this.config.ntrip_server);
+          var port = this.trimText(this.config.ntrip_port);
+          if (!server || !this.validPort(port)) {
+            this.showMessage("Máy chủ hoặc cổng NTRIP không hợp lệ.");
+            return;
+          }
+          this.askConfirm("Tra cứu điểm phát từ: " + server + ":" + port + "?", function () {
             self.httpRequest("POST", "/api/ntrip", {
               command: "query",
-              server: self.config.ntrip_server,
-              port: "" + self.config.ntrip_port,
+              server: server,
+              port: port,
               username: self.config.ntrip_username || "",
               password: self.config.ntrip_password || ""
             }, function (res) {
@@ -1145,6 +1181,8 @@
                 self.ntrip_mntpoint_list = [];
               }
               self.showMessage("Có " + self.ntrip_mntpoint_list.length + " điểm phát dữ liệu.");
+            }, function () {
+              self.showMessage("Không thể tra cứu điểm phát NTRIP.");
             });
           });
         },
@@ -1156,18 +1194,28 @@
             this.askConfirm("Ngắt kết nối NTRIP?", function () {
               self.httpRequest("POST", "/api/ntrip", {
                 command: "disconnect"
+              }, null, function () {
+                self.showMessage("Không thể ngắt kết nối NTRIP.");
               });
             });
           } else {
-            if (!this.config.ntrip_server || !this.config.ntrip_port || !this.config.ntrip_mntpoint) return;
-            this.askConfirm("Kết nối tới NTRIP: " + this.config.ntrip_server + ":" + this.config.ntrip_port + "/" + this.config.ntrip_mntpoint + "?", function () {
+            var server = this.trimText(this.config.ntrip_server);
+            var port = this.trimText(this.config.ntrip_port);
+            var mntpoint = this.trimText(this.config.ntrip_mntpoint);
+            if (!server || !this.validPort(port) || !mntpoint) {
+              this.showMessage("Thông tin kết nối NTRIP không hợp lệ.");
+              return;
+            }
+            this.askConfirm("Kết nối tới NTRIP: " + server + ":" + port + "/" + mntpoint + "?", function () {
               self.httpRequest("POST", "/api/ntrip", {
                 command: "connect",
-                server: self.config.ntrip_server,
-                port: "" + self.config.ntrip_port,
-                mntpoint: self.config.ntrip_mntpoint,
+                server: server,
+                port: port,
+                mntpoint: mntpoint,
                 username: self.config.ntrip_username || "",
                 password: self.config.ntrip_password || ""
+              }, null, function () {
+                self.showMessage("Không thể kết nối NTRIP.");
               });
             });
           }
@@ -1176,11 +1224,16 @@
         /* Save NTRIP connection to saved list and storage */
         ntripClientSave: function () {
           var self = this;
-          if (!this.config.ntrip_server || !this.config.ntrip_port) return;
+          var server = this.trimText(this.config.ntrip_server);
+          var port = this.trimText(this.config.ntrip_port);
+          if (!server || !this.validPort(port)) {
+            this.showMessage("Máy chủ hoặc cổng NTRIP không hợp lệ.");
+            return;
+          }
           var entry = {
-            server: this.config.ntrip_server,
-            port: "" + this.config.ntrip_port,
-            mntpoint: this.config.ntrip_mntpoint || "",
+            server: server,
+            port: port,
+            mntpoint: this.trimText(this.config.ntrip_mntpoint),
             username: this.config.ntrip_username || "",
             password: this.config.ntrip_password || ""
           };
@@ -1238,11 +1291,15 @@
         /* Save Base position to saved list and storage */
         baseSave: function () {
           var self = this;
-          if (!this.config.base_lat || !this.config.base_lon || !this.config.base_height) return;
+          if (!this.validBaseCoords(this.config.base_lat, this.config.base_lon, this.config.base_height)) {
+            this.showMessage("Tọa độ Base không hợp lệ.");
+            return;
+          }
           this.askInput("Nhập tên tọa độ Base:", "Tên điểm Base", function (name) {
-            if (!name) return;
+            var trimmedName = self.trimText(name);
+            if (!trimmedName) return;
             var entry = {
-              name: "" + name,
+              name: trimmedName,
               lat: "" + self.config.base_lat,
               lon: "" + self.config.base_lon,
               height: "" + self.config.base_height
@@ -1286,10 +1343,14 @@
 
         /* Copy current GNSS position into Base config inputs */
         setBaseAtCurrentPosition: function () {
-          if (!this.gnss.latitude || !this.gnss.longitude || !this.gnss.height) return;
+          if (this.gnss.fix_status === "NO FIX" || !this.gnss.latitude || !this.gnss.longitude || !this.gnss.height) {
+            this.showMessage("Chưa có tọa độ GNSS hiện tại.");
+            return;
+          }
           this.config.base_lat = this.gnss.latitude;
           this.config.base_lon = this.gnss.longitude;
           this.config.base_height = this.gnss.height;
+          this.showMessage("Đã lấy tọa độ hiện tại làm tọa độ Base.");
         },
 
         /* Trigger firmware update from SD card with confirmation prompt */
@@ -1297,12 +1358,14 @@
           var self = this;
           if (!this.status.fw_update_available || this.status.fw_update_status !== 0) return;
           this.askConfirm("Cập nhật phần mềm?", function () {
-            self.httpRequest("POST", "/api/firmware", null);
+            self.httpRequest("POST", "/api/firmware", null, null, function () {
+              self.showMessage("Không thể bắt đầu cập nhật phần mềm.");
+            });
           });
         },
 
         /* Connect to WebSocket for real-time JSON status and binary UBX stream */
-        connectWebSocket: function () {
+        connectWebSocket: function (isReconnect) {
           var self = this;
           if (self.ws) {
             self.ws.onopen = null;
@@ -1333,21 +1396,23 @@
           ws.onopen = function () {
             self.notification = "";
             self.wsLastTimestamp = Date.now();
-            self.fetchConfig();
-            self.fetchUbxFiles();
+            if (isReconnect) {
+              self.fetchConfig();
+              self.fetchUbxFiles();
+            }
           };
 
           ws.onmessage = function (evt) {
             self.heartbeat = !self.heartbeat;
             self.wsLastTimestamp = Date.now();
-            console.log("WS message");
             if (typeof evt.data === "string") {
               try {
                 var newStatus = JSON.parse(evt.data);
                 var prevSdcardStatus = self.status.sdcard_status;
+                var prevLoggerStatus = self.status.logger_status;
                 self.status = newStatus;
-                /* Reload the UBX file list whenever the SD card is inserted/removed */
-                if (newStatus.sdcard_status !== prevSdcardStatus) {
+                /* Reload the UBX file list whenever the SD card or logger state changes */
+                if (newStatus.sdcard_status !== prevSdcardStatus || newStatus.logger_status !== prevLoggerStatus) {
                   if (newStatus.sdcard_status === 1) {
                     self.fetchUbxFiles();
                   } else {
@@ -1365,14 +1430,12 @@
           ws.onclose = function () {
             self.heartbeat = false;
             self.notification = "Mất kết nối đến thiết bị";
-            console.log("WS close");
             self.ws = null;
           };
 
           ws.onerror = function () {
             self.heartbeat = false;
             self.notification = "Mất kết nối đến thiết bị";
-            console.log("WS error");
             try {
               ws.close();
             } catch (e) { }
@@ -1387,13 +1450,12 @@
           this.fetchWifiList();
           this.fetchNtripList();
           this.fetchBaseList();
-          this.connectWebSocket();
+          this.connectWebSocket(false);
           setInterval(function () {
             if (!self.ws || self.ws.readyState === 2 || self.ws.readyState === 3 || (Date.now() - self.wsLastTimestamp > 10000)) {
               self.heartbeat = false;
               self.notification = "Mất kết nối đến thiết bị";
-              console.log("WS reconnecting...");
-              self.connectWebSocket();
+              self.connectWebSocket(true);
             }
           }, 10000);
         }

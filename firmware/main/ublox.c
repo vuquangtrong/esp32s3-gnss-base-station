@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* !!! KEEP UNUSED FUNTIONS FOR LATER USE !!! */
+
 #define UBXSYNC1 0xB5 /* ubx sync code 1 */
 #define UBXSYNC2 0x62 /* ubx sync code 2 */
 #define UBXCFG   0x06 /* ubx class cfg */
@@ -157,6 +159,16 @@ static int32_t parse_i32(const char* s)
     return (int32_t)strtol(s, NULL, 0);
 }
 
+static uint64_t parse_u64(const char* s)
+{
+    return (uint64_t)strtoull(s, NULL, 0);
+}
+
+static void setU8(uint8_t* p, uint64_t u)
+{
+    memcpy(p, &u, 8);
+}
+
 /* generate ublox binary message -----------------------------------------------
  * generate ublox binary message from message string
  * args   : char  *msg   IO     message string
@@ -262,7 +274,7 @@ uint32_t ubx_gen_cmd(const char* msg, uint8_t* buff, size_t buff_size)
     uint8_t* q = buff;
     uint8_t* end = buff + buff_size - 2;
 
-    /* Working buffer for parsing input string (strtok modifies it) */
+    /* Working buffer for parsing input string (strtok_r modifies it) */
     static char mbuff[128];
 
     /* Validate input length before copying */
@@ -276,8 +288,9 @@ uint32_t ubx_gen_cmd(const char* msg, uint8_t* buff, size_t buff_size)
     /* Parse input string into arguments */
     char* args[32];
     int32_t narg = 0;
+    char* saveptr = NULL;
 
-    for (char* p = strtok(mbuff, " "); p && narg < 32; p = strtok(NULL, " "))
+    for (char* p = strtok_r(mbuff, " ", &saveptr); p && narg < 32; p = strtok_r(NULL, " ", &saveptr))
     {
         args[narg++] = p;
     }
@@ -1160,6 +1173,12 @@ uint32_t ubx_gen_cmd(const char* msg, uint8_t* buff, size_t buff_size)
                     return 0;
                 setU4(q, parse_u32(args[j + 1]));
                 q += 4;
+                break;
+            case FU8:
+                if ((size_t)(end - q) < 8)
+                    return 0;
+                setU8(q, parse_u64(args[j + 1]));
+                q += 8;
                 break;
             case FI1:
                 if ((size_t)(end - q) < 1)

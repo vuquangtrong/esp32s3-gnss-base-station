@@ -77,14 +77,12 @@ static void ntrip_caster_send_sourcetable(int fd, bool is_v2)
 
     // Format standard 19-field NTRIP STR record with configured Base LLH and RTCM3 message types enabled in BASE mode
     int body_len = snprintf(
-        g_str_buf,
-        sizeof(g_str_buf),
+        g_str_buf, sizeof(g_str_buf),
         "STR;" NTRIP_CASTER_MOUNTPOINT ";" NTRIP_CASTER_MOUNTPOINT
         ";RTCM 3.3;1005(1),1074(1),1084(1),1094(1),1124(1),1230(1);2;GPS+GLO+GAL+BDS;NONE;VNM;%s;%s;0;0;u-blox;none;B;N;9600;%s\r\n"
         "ENDSOURCETABLE\r\n",
-        (lat != NULL) ? lat : "0.0",
-        (lon != NULL) ? lon : "0.0",
-        (height != NULL) ? height : "0.0");
+        (lat != NULL) ? lat : "0.0", (lon != NULL) ? lon : "0.0", (height != NULL) ? height : "0.0"
+    );
 
     if (body_len <= 0 || (size_t)body_len >= sizeof(g_str_buf))
     {
@@ -96,8 +94,7 @@ static void ntrip_caster_send_sourcetable(int fd, bool is_v2)
     if (is_v2)
     {
         hdr_len = snprintf(
-            g_resp_buf,
-            sizeof(g_resp_buf),
+            g_resp_buf, sizeof(g_resp_buf),
             "HTTP/1.1 200 OK\r\n"
             "Ntrip-Version: Ntrip/2.0\r\n"
             "Server: NTRIP Caster\r\n"
@@ -105,20 +102,21 @@ static void ntrip_caster_send_sourcetable(int fd, bool is_v2)
             "Content-Length: %d\r\n"
             "Connection: close\r\n"
             "\r\n",
-            body_len);
+            body_len
+        );
     }
     else
     {
         hdr_len = snprintf(
-            g_resp_buf,
-            sizeof(g_resp_buf),
+            g_resp_buf, sizeof(g_resp_buf),
             "SOURCETABLE 200 OK\r\n"
             "Server: NTRIP Caster\r\n"
             "Content-Type: text/plain\r\n"
             "Content-Length: %d\r\n"
             "Connection: close\r\n"
             "\r\n",
-            body_len);
+            body_len
+        );
     }
 
     if (hdr_len > 0 && (size_t)hdr_len < sizeof(g_resp_buf))
@@ -283,7 +281,15 @@ static void ntrip_caster_broadcast(const uint8_t* data, size_t len)
                 changed = true;
             }
         }
-        else if (sent > 0)
+        else if ((size_t)sent != len)
+        {
+            // Close slow or stalled client on partial write to avoid sending corrupted RTCM3 frames
+            ESP_LOGW(TAG, "Partial send (%d/%zu), closing slow client (fd=%d)", sent, len, fd);
+            close(fd);
+            g_client_fds[i] = -1;
+            changed = true;
+        }
+        else
         {
             total_sent += sent;
         }
@@ -291,7 +297,8 @@ static void ntrip_caster_broadcast(const uint8_t* data, size_t len)
 
     if (total_sent > 0)
     {
-        status_set_int(STT_NTRIP_SENT_BYTES, status_get_int(STT_NTRIP_SENT_BYTES) + total_sent);
+        int64_t next = (int64_t)status_get_int(STT_NTRIP_SENT_BYTES) + total_sent;
+        status_set_int(STT_NTRIP_SENT_BYTES, (next > INT32_MAX) ? INT32_MAX : (int32_t)next);
     }
 
     if (changed)
@@ -320,10 +327,11 @@ static void ntrip_caster_task(void* arg)
             // Drain any connection attempts while idle so the listen backlog does not fill up
             struct sockaddr_in client_addr;
             socklen_t addr_len = sizeof(client_addr);
-            int fd = accept(g_listen_fd, (struct sockaddr*)&client_addr, &addr_len);
-            if (fd >= 0)
+            int fd;
+            while ((fd = accept(g_listen_fd, (struct sockaddr*)&client_addr, &addr_len)) >= 0)
             {
                 close(fd);
+                addr_len = sizeof(client_addr);
             }
 
             vTaskDelay(pdMS_TO_TICKS(NTRIP_CASTER_IDLE_DELAY_MS));

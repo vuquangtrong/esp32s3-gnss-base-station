@@ -204,6 +204,12 @@ static void ntrip_gga_task(void* arg)
     size_t line_idx = 0;
     bool in_sentence = false;
 
+    taskENTER_CRITICAL(&g_ntrip_mux);
+    g_gga_buf[0] = '\0';
+    g_gga_ready = false;
+    taskEXIT_CRITICAL(&g_ntrip_mux);
+
+    uart_flush_input(UART2_PORT);
     ESP_LOGI(TAG, "UART2 GGA reader task started");
 
     while (!g_gga_task_stop)
@@ -242,7 +248,7 @@ static void ntrip_gga_task(void* arg)
                     if (strstr(g_gga_line_buf, "GGA,") != NULL)
                     {
                         ntrip_save_gga(g_gga_line_buf);
-                        g_gga_line_buf[line_idx - 2] = '\0';  // remove \r\n
+                        g_gga_line_buf[strcspn(g_gga_line_buf, "\r\n")] = '\0';
                         ESP_LOGI(TAG, "%s", g_gga_line_buf);
                     }
                     in_sentence = false;
@@ -588,7 +594,8 @@ static void ntrip_stream_task(void* arg)
         {
             idle_ticks = 0;
             uart_write_bytes(UART2_PORT, g_http_rx_buf, (size_t)bytes_read);
-            status_set_int(STT_NTRIP_RECEIVED_BYTES, status_get_int(STT_NTRIP_RECEIVED_BYTES) + bytes_read);
+            int64_t next = (int64_t)status_get_int(STT_NTRIP_RECEIVED_BYTES) + bytes_read;
+            status_set_int(STT_NTRIP_RECEIVED_BYTES, (next > INT32_MAX) ? INT32_MAX : (int32_t)next);
         }
         else if (bytes_read < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         {

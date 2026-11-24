@@ -14,9 +14,6 @@
 static const char* TAG1 = "uart1";
 static const char* TAG2 = "uart2";
 
-static QueueHandle_t g_uart1_event_queue = NULL;
-static QueueHandle_t g_uart2_event_queue = NULL;
-
 esp_err_t uart_init(void)
 {
     uart_config_t uart_config = {
@@ -31,7 +28,7 @@ esp_err_t uart_init(void)
     // Configure UART1
     ESP_ERROR_CHECK(uart_param_config(UART1_PORT, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART1_PORT, UART1_TX_PIN, UART1_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART1_PORT, UART_RX_BUFFER_SIZE, UART_TX_BUFFER_SIZE, UART_EVENT_QUEUE_SIZE, &g_uart1_event_queue, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART1_PORT, UART_RX_BUFFER_SIZE, UART_TX_BUFFER_SIZE, 0, NULL, 0));
     vTaskDelay(pdMS_TO_TICKS(500));
     ESP_LOGI(TAG1, "initialized at baud rate %d", uart_config.baud_rate);
 
@@ -53,21 +50,11 @@ esp_err_t uart_init(void)
     uart_config.baud_rate = UART_BAUD_RATE_HIGH;
     ESP_ERROR_CHECK(uart_param_config(UART2_PORT, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART2_PORT, UART2_TX_PIN, UART2_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART2_PORT, UART_RX_BUFFER_SIZE, UART_TX_BUFFER_SIZE, UART_EVENT_QUEUE_SIZE, &g_uart2_event_queue, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART2_PORT, UART_RX_BUFFER_SIZE, UART_TX_BUFFER_SIZE, 0, NULL, 0));
     vTaskDelay(pdMS_TO_TICKS(500));
     ESP_LOGI(TAG2, "initialized at baud rate %d", uart_config.baud_rate);
 
     return ESP_OK;
-}
-
-QueueHandle_t uart1_get_event_queue(void)
-{
-    return g_uart1_event_queue;
-}
-
-QueueHandle_t uart2_get_event_queue(void)
-{
-    return g_uart2_event_queue;
 }
 
 esp_err_t uart1_send_command(const char* msg)

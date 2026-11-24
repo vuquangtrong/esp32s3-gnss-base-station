@@ -140,6 +140,7 @@ esp_err_t gnss_set_mode_base(
 )
 {
     esp_err_t ret = ESP_OK;
+    (void)ret;
 
     if (!isfinite(latitude) || latitude < -90.0 || latitude > 90.0 || !isfinite(longitude) || longitude < -180.0 || longitude > 180.0 || !isfinite(height) ||
         fabs(height) > 100000.0)
@@ -234,6 +235,7 @@ esp_err_t gnss_set_mode_ppp(
 )
 {
     esp_err_t ret = ESP_OK;
+    (void)ret;
 
     if (duration == 0 || accuracy == 0 || accuracy > (UINT32_MAX / 10))
     {

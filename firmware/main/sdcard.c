@@ -286,14 +286,7 @@ esp_err_t sdcard_file_delete(const char* filename)
 
 const char* sdcard_list_ubx_files(void)
 {
-    static char* s_ubx_files_json_str = NULL;
-
-    // Free previous result
-    if (s_ubx_files_json_str != NULL)
-    {
-        free(s_ubx_files_json_str);
-        s_ubx_files_json_str = NULL;
-    }
+    static char s_ubx_files_json[SDCARD_JSON_BUF_SIZE];
 
     cJSON* files_array = cJSON_CreateArray();
     if (files_array == NULL)
@@ -355,8 +348,8 @@ const char* sdcard_list_ubx_files(void)
         return "{\"files\":[]}";
     }
     cJSON_AddItemToObject(response, "files", files_array);
-    s_ubx_files_json_str = cJSON_PrintUnformatted(response);
+    bool ok = cJSON_PrintPreallocated(response, s_ubx_files_json, (int)sizeof(s_ubx_files_json), false);
     cJSON_Delete(response);
 
-    return (s_ubx_files_json_str != NULL) ? s_ubx_files_json_str : "{\"files\":[]}";
+    return ok ? s_ubx_files_json : "{\"files\":[]}";
 }

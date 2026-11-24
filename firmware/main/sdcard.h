@@ -12,6 +12,7 @@
 #define SDCARD_MAX_FILES            8
 #define SDCARD_ALLOCATION_UNIT_SIZE (64 * 1024)  // 64KB
 #define SDCARD_SYNC_INTERVAL_MS     10000        // 10s
+#define SDCARD_JSON_BUF_SIZE        4096
 #define SDCARD_BUS_WIDTH            4
 #define SDCARD_PIN_CMD              GPIO_NUM_15
 #define SDCARD_PIN_CLK              GPIO_NUM_7
