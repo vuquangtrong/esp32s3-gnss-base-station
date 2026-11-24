@@ -798,6 +798,90 @@ static void server_ws_task(void* arg)
     }
 }
 
+static esp_err_t server_send_file(httpd_req_t* req, const char* filepath, const char* content_type)
+{
+    struct stat st = {0};
+    if (stat(filepath, &st) != 0 || !S_ISREG(st.st_mode))
+    {
+        ESP_LOGW(TAG, "File not found: %s", filepath);
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File not found");
+        return ESP_FAIL;
+    }
+
+    int fd = open(filepath, O_RDONLY, 0);
+    if (fd == -1)
+    {
+        ESP_LOGE(TAG, "Failed to open file: %s", filepath);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open file");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Serving file: %s", filepath);
+    httpd_resp_set_type(req, content_type);
+
+    // Stream file in chunks using the pre-allocated static buffer
+    ssize_t bytes_read = 0;
+    while ((bytes_read = read(fd, g_file_buf, sizeof(g_file_buf))) > 0)
+    {
+        if (httpd_resp_send_chunk(req, g_file_buf, bytes_read) != ESP_OK)
+        {
+            close(fd);
+            httpd_resp_sendstr_chunk(req, NULL);
+            ESP_LOGE(TAG, "Failed to send file chunk: %s", filepath);
+            return ESP_FAIL;
+        }
+    }
+
+    close(fd);
+
+    if (bytes_read < 0)
+    {
+        httpd_resp_sendstr_chunk(req, NULL);
+        ESP_LOGE(TAG, "Failed to read file: %s", filepath);
+        return ESP_FAIL;
+    }
+
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+static esp_err_t server_handle_download_get(httpd_req_t* req)
+{
+    if (req == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const size_t prefix_len = sizeof("/download/") - 1;
+    const char* uri = req->uri;
+    size_t uri_len = strcspn(uri, "?#");
+
+    if (uri_len <= prefix_len || strncmp(uri, "/download/", prefix_len) != 0)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid download path");
+        return ESP_FAIL;
+    }
+
+    const char* filename = uri + prefix_len;
+    size_t filename_len = uri_len - prefix_len;
+
+    char filepath[SERVER_FILE_PATH_MAX];
+    int written = snprintf(filepath, sizeof(filepath), "%s/%.*s", SDCARD_MOUNT_POINT, (int)filename_len, filename);
+    if (written < 0 || (size_t)written >= sizeof(filepath))
+    {
+        httpd_resp_send_err(req, HTTPD_414_URI_TOO_LONG, "URI too long");
+        return ESP_FAIL;
+    }
+
+    const char* name_in_path = filepath + sizeof(SDCARD_MOUNT_POINT);
+    if (strchr(name_in_path, '/') != NULL || strchr(name_in_path, '\\') != NULL || strstr(name_in_path, "..") != NULL)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid filename");
+        return ESP_FAIL;
+    }
+
+    return server_send_file(req, filepath, "application/octet-stream");
+}
+
 static esp_err_t server_handle_static_get(httpd_req_t* req)
 {
     if (req == NULL)
@@ -858,48 +942,7 @@ static esp_err_t server_handle_static_get(httpd_req_t* req)
     }
 
 serve_file:
-    struct stat st = {0};
-    if (stat(filepath, &st) != 0 || !S_ISREG(st.st_mode))
-    {
-        ESP_LOGW(TAG, "File not found: %s", filepath);
-        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File not found");
-        return ESP_FAIL;
-    }
-
-    int fd = open(filepath, O_RDONLY, 0);
-    if (fd == -1)
-    {
-        ESP_LOGE(TAG, "Failed to open file: %s", filepath);
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open file");
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "Serving static file: %s", filepath);
-    httpd_resp_set_type(req, server_content_type(filepath));
-
-    // Stream file in chunks using the pre-allocated static buffer
-    ssize_t bytes_read = 0;
-    while ((bytes_read = read(fd, g_file_buf, sizeof(g_file_buf))) > 0)
-    {
-        if (httpd_resp_send_chunk(req, g_file_buf, bytes_read) != ESP_OK)
-        {
-            close(fd);
-            httpd_resp_sendstr_chunk(req, NULL);
-            ESP_LOGE(TAG, "Failed to send file chunk: %s", filepath);
-            return ESP_FAIL;
-        }
-    }
-
-    close(fd);
-
-    if (bytes_read < 0)
-    {
-        httpd_resp_sendstr_chunk(req, NULL);
-        ESP_LOGE(TAG, "Failed to read file: %s", filepath);
-        return ESP_FAIL;
-    }
-
-    return httpd_resp_send_chunk(req, NULL, 0);
+    return server_send_file(req, filepath, server_content_type(filepath));
 }
 
 static esp_err_t server_mount_www(void)
@@ -976,6 +1019,7 @@ esp_err_t server_init(void)
         {.uri = "/api/base", .method = HTTP_POST, .handler = server_handle_base_post},
         {.uri = "/api/gnss", .method = HTTP_POST, .handler = server_handle_gnss_post},
         {.uri = "/api/firmware", .method = HTTP_POST, .handler = server_handle_firmware_post},
+        {.uri = "/download/*", .method = HTTP_GET, .handler = server_handle_download_get},
         {.uri = "/ws", .method = HTTP_GET, .handler = server_handle_ws, .is_websocket = true, .ws_post_handshake_cb = server_ws_post_handshake},
         {.uri = "/*", .method = HTTP_GET, .handler = server_handle_static_get},
     };

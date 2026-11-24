@@ -493,6 +493,8 @@
                     <small x-text="file_size_text(w.size)"></small>
                   </td>
                   <td style="white-space: nowrap">
+                    <a download role="button" class="primary small-button"
+                      :href="'/download/' + encodeURIComponent(w.name)">&darr;</a>
                     <button class="outline small-button text-red" @click="ubxFileItemDelete(idx)">&times;</button>
                   </td>
                 </tr>
