@@ -404,6 +404,7 @@
         <div class="grid">
           <span></span>
           <button class="outline" @click="loggerToggleLogging()"
+            :disabled="status.sdcard_status !== 1 || status.gnss_mode !== 2"
             x-text="button_text_logger_toggle(status.logger_status)"></button>
         </div>
       </div>
@@ -569,6 +570,7 @@
           fix_status: "NO FIX",
           sat_num: 0,
           date_time: "",
+          date_time_file: "",
           latitude: "",
           longitude: "",
           height: "",
@@ -599,11 +601,11 @@
           this.dialog.placeholder = placeholder || "";
         },
 
-        showMessage: function (msg) {
+        showMessage: function (msg, onOk) {
           this.dialog.open = true;
           this.dialog.message = msg;
           this.dialog.hasConfirm = false;
-          this.dialog.onConfirm = null;
+          this.dialog.onConfirm = (typeof onOk === "function") ? onOk : null;
           this.dialog.hasInput = false;
           this.dialog.inputValue = "";
           this.dialog.placeholder = "";
@@ -613,6 +615,7 @@
           var cb = this.dialog.onConfirm;
           var val = this.dialog.inputValue;
           var hasInput = this.dialog.hasInput;
+          var hasConfirm = this.dialog.hasConfirm;
           this.dialog.open = false;
           this.dialog.message = "";
           this.dialog.hasConfirm = false;
@@ -620,7 +623,7 @@
           this.dialog.hasInput = false;
           this.dialog.inputValue = "";
           this.dialog.placeholder = "";
-          if (confirmed && typeof cb === "function") {
+          if ((confirmed || !hasConfirm) && typeof cb === "function") {
             if (hasInput) {
               cb(val);
             } else {
@@ -660,6 +663,89 @@
           xhr.send((data !== null && data !== undefined) ? JSON.stringify(data) : null);
         },
 
+        /* Trim leading/trailing whitespace (ES5 compatible) */
+        trimText: function (value) {
+          return (value === null || value === undefined ? "" : "" + value).replace(/^\s+|\s+$/g, "");
+        },
+
+        /* Validate the optional filename prefix: empty or a safe short name */
+        validLoggerPrefix: function (prefix) {
+          if (prefix.length > 24) return false;
+          return /^[A-Za-z0-9_-]*$/.test(prefix);
+        },
+
+        /* Ask for a filename prefix, then start logging with a datetime suffix */
+        askLoggerFilename: function () {
+          var self = this;
+          this.askInput("Nhập tên tệp log (có thể để trống):", "Tên tệp", function (value) {
+            var prefix = self.trimText(value);
+            if (!self.validLoggerPrefix(prefix)) {
+              self.showMessage("Tên tệp không hợp lệ. Chỉ dùng chữ cái, số, dấu '_' hoặc '-', tối đa 24 ký tự.", function () {
+                self.askLoggerFilename();
+              });
+              return;
+            }
+            var stamp = self.trimText(self.gnss.date_time_file);
+            if (!/^\d{8}_\d{6}$/.test(stamp)) {
+              self.showMessage("Chưa có thời gian GNSS. Không thể bắt đầu ghi.");
+              return;
+            }
+            var file = (prefix ? prefix + "_" : "") + stamp + ".ubx";
+            self.httpRequest("POST", "/api/logger", {
+              command: "start",
+              file: file
+            }, function () {
+              self.fetchUbxFiles();
+            }, function () {
+              self.showMessage("Không thể bắt đầu ghi dữ liệu.");
+            });
+          });
+        },
+
+        /* Start or stop writing RAW UBX data from UART2 to the SD card */
+        loggerToggleLogging: function () {
+          var self = this;
+          if (this.status.logger_status === 1) {
+            this.askConfirm("Dừng ghi dữ liệu?", function () {
+              self.httpRequest("POST", "/api/logger", {
+                command: "stop"
+              }, function () {
+                self.fetchUbxFiles();
+              }, function () {
+                self.showMessage("Không thể dừng ghi dữ liệu.");
+              });
+            });
+            return;
+          }
+          if (!/^\d{8}_\d{6}$/.test(this.trimText(this.gnss.date_time_file))) {
+            this.showMessage("Chưa có thời gian GNSS. Không thể bắt đầu ghi.");
+            return;
+          }
+          this.askLoggerFilename();
+        },
+
+        /* Confirm a GNSS mode switch, stopping an active logger first when needed */
+        switchGnssMode: function (message, payload) {
+          var self = this;
+          var send = function () {
+            self.httpRequest("POST", "/api/gnss", payload);
+          };
+          if (this.status.logger_status === 1) {
+            this.askConfirm("Đang ghi dữ liệu. Dừng ghi trước khi đổi chế độ?", function () {
+              self.httpRequest("POST", "/api/logger", {
+                command: "stop"
+              }, function () {
+                self.fetchUbxFiles();
+                self.askConfirm(message, send);
+              }, function () {
+                self.showMessage("Không thể dừng ghi dữ liệu.");
+              });
+            });
+          } else {
+            this.askConfirm(message, send);
+          }
+        },
+
         /* Switch active configuration view tab */
         setDisplayMode: function (mode) {
           this.displayMode = mode;
@@ -670,10 +756,8 @@
           var self = this;
           if (mode === "rover") {
             if (this.status.gnss_mode === 0) return;
-            this.askConfirm("Kích hoạt chế độ Rover?", function () {
-              self.httpRequest("POST", "/api/gnss", {
-                mode: "rover"
-              });
+            this.switchGnssMode("Kích hoạt chế độ Rover?", {
+              mode: "rover"
             });
           } else if (mode === "base") {
             if (this.status.gnss_mode === 1) return;
@@ -685,13 +769,11 @@
               isNaN(height) || Math.abs(height) > 100000) {
               return;
             }
-            this.askConfirm("Kích hoạt chế độ Base?", function () {
-              self.httpRequest("POST", "/api/gnss", {
-                mode: "base",
-                lat: "" + self.config.base_lat,
-                lon: "" + self.config.base_lon,
-                height: "" + self.config.base_height
-              });
+            this.switchGnssMode("Kích hoạt chế độ Base?", {
+              mode: "base",
+              lat: "" + self.config.base_lat,
+              lon: "" + self.config.base_lon,
+              height: "" + self.config.base_height
             });
           } else if (mode === "ppp") {
             if (this.status.gnss_mode === 2) return;
@@ -700,12 +782,10 @@
             if (isNaN(minDur) || minDur <= 0 || isNaN(accLimit) || accLimit <= 0) {
               return;
             }
-            this.askConfirm("Kích hoạt chế độ PPP?", function () {
-              self.httpRequest("POST", "/api/gnss", {
-                mode: "ppp",
-                min_dur: "" + minDur,
-                acc_limit: "" + accLimit
-              });
+            this.switchGnssMode("Kích hoạt chế độ PPP?", {
+              mode: "ppp",
+              min_dur: "" + minDur,
+              acc_limit: "" + accLimit
             });
           }
         },
@@ -841,6 +921,7 @@
           }
 
           this.gnss.date_time = year + "-" + pad2(month) + "-" + pad2(day) + " " + pad2(hour) + ":" + pad2(min) + ":" + pad2(sec);
+          this.gnss.date_time_file = year + pad2(month) + pad2(day) + "_" + pad2(hour) + pad2(min) + pad2(sec);
           this.gnss.fix_status = fixText;
           this.gnss.sat_num = numSV;
           this.gnss.latitude = lat.toFixed(9);

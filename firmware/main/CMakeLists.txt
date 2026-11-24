@@ -13,6 +13,7 @@ set(srcs
     server.c
     ntrip_client.c
     ntrip_caster.c
+    ppp_logger.c
     main.c
 )
 
