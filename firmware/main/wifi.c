@@ -9,6 +9,7 @@
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "mdns.h"
 #include "status.h"
 
 static const char* TAG = "wifi";
@@ -125,6 +126,14 @@ static esp_netif_t* wifi_init_sta(void)
     return esp_netif_sta;
 }
 
+static void mdns_start(void)
+{
+    ESP_ERROR_CHECK(mdns_init());
+    ESP_ERROR_CHECK(mdns_hostname_set(MDNS_HOST_NAME));
+    ESP_ERROR_CHECK(mdns_instance_name_set(MDNS_INSTANCE_NAME));
+    ESP_ERROR_CHECK(mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0));
+}
+
 esp_err_t wifi_init(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -152,6 +161,8 @@ esp_err_t wifi_init(void)
     esp_netif_set_default_netif(g_esp_netif_sta);
 
     ESP_LOGI(TAG, "WiFi initialization completed");
+
+    mdns_start();
     return ESP_OK;
 }
 

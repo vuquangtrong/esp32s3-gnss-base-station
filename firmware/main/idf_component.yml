@@ -1,4 +1,5 @@
 ## IDF Component Manager Manifest File
 dependencies:
   espressif/cjson: "*"
+  espressif/mdns: "*"
   joltwallet/littlefs: "*"
