@@ -245,6 +245,45 @@ esp_err_t sdcard_file_close(FILE* file)
     }
 }
 
+esp_err_t sdcard_file_delete(const char* filename)
+{
+    if (g_card == NULL)
+    {
+        ESP_LOGE(TAG, "SD card not mounted");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (filename == NULL || filename[0] == '\0')
+    {
+        ESP_LOGE(TAG, "Invalid filename");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Restrict deletion to plain file names inside the SD card mount point
+    if (strchr(filename, '/') != NULL || strchr(filename, '\\') != NULL || strstr(filename, "..") != NULL)
+    {
+        ESP_LOGE(TAG, "Invalid filename: %s", filename);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char filepath[256];
+    int len = snprintf(filepath, sizeof(filepath), "%s/%s", SDCARD_MOUNT_POINT, filename);
+    if (len < 0 || (size_t)len >= sizeof(filepath))
+    {
+        ESP_LOGE(TAG, "File path too long: %s", filename);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (unlink(filepath) != 0)
+    {
+        ESP_LOGE(TAG, "Failed to delete file: %s", filepath);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "File deleted: %s", filepath);
+    return ESP_OK;
+}
+
 const char* sdcard_list_ubx_files(void)
 {
     static char* s_ubx_files_json_str = NULL;

@@ -26,6 +26,7 @@ esp_err_t sdcard_remount(void);
 FILE* sdcard_file_open(const char* filename, const char* mode);
 size_t sdcard_file_write(FILE* file, const void* data, size_t size);
 esp_err_t sdcard_file_close(FILE* file);
+esp_err_t sdcard_file_delete(const char* filename);
 
 const char* sdcard_list_ubx_files(void);
 

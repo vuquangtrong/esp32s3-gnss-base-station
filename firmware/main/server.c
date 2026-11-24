@@ -21,6 +21,7 @@
 #include "fw_update.h"
 #include "gnss.h"
 #include "ntrip_client.h"
+#include "sdcard.h"
 #include "status.h"
 #include "storage.h"
 #include "uart.h"
@@ -151,6 +152,72 @@ static esp_err_t server_handle_status_get(httpd_req_t* req)
 
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, status_get_all());
+}
+
+static esp_err_t server_handle_sdcard_get(httpd_req_t* req)
+{
+    if (req == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, sdcard_list_ubx_files());
+}
+
+static esp_err_t server_handle_sdcard_post(httpd_req_t* req)
+{
+    if (req == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (req->content_len == 0 || req->content_len >= sizeof(g_req_buf))
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid content length");
+        return ESP_FAIL;
+    }
+
+    int received = httpd_req_recv(req, g_req_buf, req->content_len);
+    if (received <= 0 || (size_t)received != req->content_len)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive body");
+        return ESP_FAIL;
+    }
+    g_req_buf[received] = '\0';
+
+    cJSON* root = cJSON_Parse(g_req_buf);
+    if (!cJSON_IsObject(root))
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    const cJSON* cmd_item = cJSON_GetObjectItem(root, "command");
+    const cJSON* file_item = cJSON_GetObjectItem(root, "file");
+    const char* cmd = cJSON_IsString(cmd_item) ? cmd_item->valuestring : NULL;
+    const char* file = cJSON_IsString(file_item) ? file_item->valuestring : NULL;
+
+    if (cmd == NULL || strcmp(cmd, "delete") != 0 || file == NULL || file[0] == '\0')
+    {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid SD card command");
+        return ESP_FAIL;
+    }
+
+    esp_err_t err = sdcard_file_delete(file);
+    cJSON_Delete(root);
+
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "SDCard POST command failed (%s)", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Command failed");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
 }
 
 static esp_err_t server_handle_wifi_get(httpd_req_t* req)
@@ -958,6 +1025,20 @@ esp_err_t server_init(void)
         .handler = server_handle_status_get,
     };
     httpd_register_uri_handler(g_server, &uri_status_get);
+
+    static const httpd_uri_t uri_sdcard_get = {
+        .uri = "/api/sdcard",
+        .method = HTTP_GET,
+        .handler = server_handle_sdcard_get,
+    };
+    httpd_register_uri_handler(g_server, &uri_sdcard_get);
+
+    static const httpd_uri_t uri_sdcard_post = {
+        .uri = "/api/sdcard",
+        .method = HTTP_POST,
+        .handler = server_handle_sdcard_post,
+    };
+    httpd_register_uri_handler(g_server, &uri_sdcard_post);
 
     static const httpd_uri_t uri_wifi_get = {
         .uri = "/api/wifi",

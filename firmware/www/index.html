@@ -470,6 +470,36 @@
         <span x-text="sdcard_status_text(status.sdcard_status)" :class="sdcard_status_class(status.sdcard_status)">
         </span>
       </summary>
+
+      <!-- List of UBX files on SDCard -->
+      <template x-if="ubx_files_list.length > 0">
+        <div style="max-height: 14rem; overflow-x: auto; overflow-y: auto">
+          <table>
+            <thead>
+              <tr>
+                <th><small>File</small></th>
+                <th><small>Kích thước</small></th>
+                <th style="width: 10ch;"><small>Thao tác</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(w, idx) in ubx_files_list" :key="idx">
+                <tr>
+                  <td>
+                    <small x-text="w.name"></small>
+                  </td>
+                  <td>
+                    <small x-text="file_size_text(w.size)"></small>
+                  </td>
+                  <td style="white-space: nowrap">
+                    <button class="outline small-button text-red" @click="ubxFileItemDelete(idx)">&times;</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </details>
 
     <!-- System, always show -->
@@ -523,6 +553,7 @@
         saved_wifi_list: [],
         saved_ntrip_list: [],
         saved_base_list: [],
+        ubx_files_list: [],
         ntrip_mntpoint_list: [],
         prev_mntpoint: "",
         dialog: {
@@ -722,6 +753,14 @@
           return "";
         },
 
+        /* Format a byte count into a human-readable file size */
+        file_size_text: function (s) {
+          if (typeof s !== "number" || isNaN(s) || s < 0) return "";
+          if (s < 1024) return s + " B";
+          if (s < 1024 * 1024) return (s / 1024).toFixed(1) + " KB";
+          return (s / (1024 * 1024)).toFixed(1) + " MB";
+        },
+
         logger_status_text: function (st) {
           if (st === 0) return "Đã dừng";
           if (st === 1) return "Đang ghi";
@@ -878,6 +917,36 @@
             if (res) {
               self.config = res;
             }
+          });
+        },
+
+        /* Fetch list of UBX files stored on the SD card */
+        fetchUbxFiles: function () {
+          var self = this;
+          this.httpRequest("GET", "/api/sdcard", null, function (res) {
+            if (res && Array.isArray(res.files)) {
+              self.ubx_files_list = res.files;
+            } else {
+              self.ubx_files_list = [];
+            }
+          });
+        },
+
+        /* Delete a UBX file from the SD card */
+        ubxFileItemDelete: function (idx) {
+          var self = this;
+          if (idx < 0 || idx >= this.ubx_files_list.length) return;
+          var target = this.ubx_files_list[idx];
+          if (!target || !target.name) return;
+          this.askConfirm("Xóa tệp: " + target.name + "?", function () {
+            self.httpRequest("POST", "/api/sdcard", {
+              command: "delete",
+              file: target.name
+            }, function () {
+              self.fetchUbxFiles();
+            }, function () {
+              self.showMessage("Không thể xóa tệp: " + target.name);
+            });
           });
         },
 
@@ -1168,7 +1237,17 @@
             console.log("WS message");
             if (typeof evt.data === "string") {
               try {
-                self.status = JSON.parse(evt.data);
+                var newStatus = JSON.parse(evt.data);
+                var prevSdcardStatus = self.status.sdcard_status;
+                self.status = newStatus;
+                /* Reload the UBX file list whenever the SD card is inserted/removed */
+                if (newStatus.sdcard_status !== prevSdcardStatus) {
+                  if (newStatus.sdcard_status === 1) {
+                    self.fetchUbxFiles();
+                  } else {
+                    self.ubx_files_list = [];
+                  }
+                }
               } catch (e) {
                 console.error("Invalid status JSON:", e);
               }
@@ -1198,6 +1277,7 @@
 
         init: function () {
           this.fetchConfig();
+          this.fetchUbxFiles();
           this.fetchWifiList();
           this.fetchNtripList();
           this.fetchBaseList();
