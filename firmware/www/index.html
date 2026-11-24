@@ -156,7 +156,7 @@
         <input readonly x-model="gnss.height" />
 
         <label></label>
-        <div class="grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0; align-items: baseline">
+        <div class="grid" style="grid-template-columns: 3ch 1fr 3ch 1fr; gap: 0; align-items: baseline">
           <span>ΔH</span>
           <span x-text="gnss.h_acc"></span>
           <span>ΔV</span>
@@ -187,7 +187,7 @@
         <span x-text="conn_status_text(status.ntrip_client_status)"
           :class="conn_status_class(status.ntrip_client_status)">
         </span>
-        <span x-text="status.ntrip_received_bytes"></span>
+        <span x-text="file_size_text(status.ntrip_received_bytes)"></span>
       </summary>
 
       <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: center">
@@ -301,8 +301,8 @@
             <thead>
               <tr>
                 <th><small>Tên</small></th>
-                <th><small>Lat</small></th>
-                <th><small>Lon</small></th>
+                <th><small>Vĩ độ (Lat)</small></th>
+                <th><small>Kinh độ (Lon)</small></th>
                 <th><small>Độ cao</small></th>
                 <th style="width: 10ch;"><small>Thao tác</small></th>
               </tr>
@@ -341,8 +341,8 @@
         <span x-text="conn_status_text(status.ntrip_server_status)"
           :class="conn_status_class(status.ntrip_server_status)">
         </span>
-        <span x-text="status.ntrip_conn_count"></span>
-        <span x-text="status.ntrip_sent_bytes"></span>
+        <strong x-text="status.ntrip_conn_count"></strong>:
+        <span x-text="file_size_text(status.ntrip_sent_bytes)"></span>
       </summary>
 
       <div class="grid" style="grid-template-columns: 7rem 1fr; gap: 0; align-items: center">
@@ -398,7 +398,7 @@
         <input readonly x-model="status.logger_file" />
 
         <label>Dung lượng</label>
-        <input readonly x-model="status.logger_size" />
+        <input readonly x-model="file_size_text(status.logger_size)" />
 
         <div></div>
         <div class="grid">
@@ -578,6 +578,7 @@
           v_acc: ""
         },
         ws: null,
+        wsLastTimestamp: 0,
         ubxBuf: [],
 
         /* General confirmation, prompt and message dialog helpers */
@@ -1303,18 +1304,42 @@
         /* Connect to WebSocket for real-time JSON status and binary UBX stream */
         connectWebSocket: function () {
           var self = this;
+          if (self.ws) {
+            self.ws.onopen = null;
+            self.ws.onmessage = null;
+            self.ws.onclose = null;
+            self.ws.onerror = null;
+            try {
+              self.ws.close();
+            } catch (e) { }
+            self.ws = null;
+          }
+
           var proto = (window.location.protocol === "https:") ? "wss:" : "ws:";
           var wsUrl = proto + "//" + window.location.host + "/ws";
-          var ws = new WebSocket(wsUrl);
+          var ws;
+          try {
+            ws = new WebSocket(wsUrl);
+          } catch (e) {
+            console.error("WS create error:", e);
+            self.heartbeat = false;
+            self.notification = "Mất kết nối đến thiết bị";
+            return;
+          }
           ws.binaryType = "arraybuffer";
           self.ws = ws;
+          self.wsLastTimestamp = Date.now();
 
           ws.onopen = function () {
             self.notification = "";
+            self.wsLastTimestamp = Date.now();
+            self.fetchConfig();
+            self.fetchUbxFiles();
           };
 
           ws.onmessage = function (evt) {
             self.heartbeat = !self.heartbeat;
+            self.wsLastTimestamp = Date.now();
             console.log("WS message");
             if (typeof evt.data === "string") {
               try {
@@ -1337,32 +1362,40 @@
             }
           };
 
-          /* Auto-reconnect after 5 seconds on error or close */
           ws.onclose = function () {
             self.heartbeat = false;
             self.notification = "Mất kết nối đến thiết bị";
             console.log("WS close");
             self.ws = null;
-            setTimeout(function () {
-              self.connectWebSocket();
-            }, 5000);
           };
 
           ws.onerror = function () {
             self.heartbeat = false;
             self.notification = "Mất kết nối đến thiết bị";
             console.log("WS error");
-            ws.close();
+            try {
+              ws.close();
+            } catch (e) { }
+            self.ws = null;
           };
         },
 
         init: function () {
+          var self = this;
           this.fetchConfig();
           this.fetchUbxFiles();
           this.fetchWifiList();
           this.fetchNtripList();
           this.fetchBaseList();
           this.connectWebSocket();
+          setInterval(function () {
+            if (!self.ws || self.ws.readyState === 2 || self.ws.readyState === 3 || (Date.now() - self.wsLastTimestamp > 10000)) {
+              self.heartbeat = false;
+              self.notification = "Mất kết nối đến thiết bị";
+              console.log("WS reconnecting...");
+              self.connectWebSocket();
+            }
+          }, 10000);
         }
       };
     }
