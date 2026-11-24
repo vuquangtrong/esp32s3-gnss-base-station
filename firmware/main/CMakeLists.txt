@@ -11,6 +11,7 @@ set(srcs
     factory_test.c
     wifi.c
     server.c
+    ntrip_client.c
     main.c
 )
 
@@ -28,6 +29,7 @@ idf_component_register(SRCS ${srcs}
         esp_adc
         esp_wifi
         esp_http_server
+        esp_http_client
 )
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)

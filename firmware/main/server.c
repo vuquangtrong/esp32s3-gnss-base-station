@@ -20,6 +20,7 @@
 #include "freertos/task.h"
 #include "fw_update.h"
 #include "gnss.h"
+#include "ntrip_client.h"
 #include "status.h"
 #include "storage.h"
 #include "uart.h"
@@ -332,7 +333,7 @@ static esp_err_t server_handle_ntrip_post(httpd_req_t* req)
     const char* cmd = cmd_item->valuestring;
     esp_err_t err = ESP_ERR_INVALID_ARG;
 
-    if (strcmp(cmd, "save") == 0)
+    if (strcmp(cmd, "query") == 0 || strcmp(cmd, "connect") == 0 || strcmp(cmd, "save") == 0)
     {
         const cJSON* server_item = cJSON_GetObjectItem(root, "server");
         const cJSON* port_item = cJSON_GetObjectItem(root, "port");
@@ -346,29 +347,75 @@ static esp_err_t server_handle_ntrip_post(httpd_req_t* req)
         const char* username = cJSON_IsString(user_item) ? user_item->valuestring : "";
         const char* password = cJSON_IsString(pass_item) ? pass_item->valuestring : "";
 
-        if (server == NULL || server[0] == '\0' || port == NULL || port[0] == '\0')
+        char* endptr = NULL;
+        unsigned long port_num = (port != NULL && port[0] != '\0') ? strtoul(port, &endptr, 10) : 0;
+        if (server == NULL || server[0] == '\0' || port == NULL || port[0] == '\0' || *endptr != '\0' || port_num == 0 || port_num > UINT16_MAX)
         {
             cJSON_Delete(root);
             httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid NTRIP server or port");
             return ESP_FAIL;
         }
 
-        cJSON* entry = cJSON_CreateObject();
-        if (entry != NULL)
+        if (strcmp(cmd, "query") == 0)
         {
-            cJSON_AddStringToObject(entry, "server", server);
-            cJSON_AddStringToObject(entry, "port", port);
-            cJSON_AddStringToObject(entry, "mntpoint", mntpoint);
-            cJSON_AddStringToObject(entry, "username", username);
-            cJSON_AddStringToObject(entry, "password", password);
-            char* entry_str = cJSON_PrintUnformatted(entry);
-            if (entry_str != NULL)
+            config_set(CFG_NTRIP_SERVER, server);
+            config_set(CFG_NTRIP_PORT, port);
+            config_set(CFG_NTRIP_USERNAME, username);
+            config_set(CFG_NTRIP_PASSWORD, password);
+
+            const char* json = ntrip_client_query_mountpoints(server, (uint16_t)port_num, username, password);
+            cJSON_Delete(root);
+            if (json == NULL)
             {
-                err = storage_file_write_entry(STORAGE_NTRIP_FILE, entry_str);
-                cJSON_free(entry_str);
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to query mountpoints");
+                return ESP_FAIL;
             }
-            cJSON_Delete(entry);
+            httpd_resp_set_type(req, "application/json");
+            return httpd_resp_sendstr(req, json);
         }
+        else if (strcmp(cmd, "connect") == 0)
+        {
+            if (mntpoint == NULL || mntpoint[0] == '\0')
+            {
+                cJSON_Delete(root);
+                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid NTRIP mountpoint");
+                return ESP_FAIL;
+            }
+
+            err = ntrip_client_connect(server, (uint16_t)port_num, mntpoint, username, password);
+            if (err == ESP_OK)
+            {
+                config_set(CFG_NTRIP_SERVER, server);
+                config_set(CFG_NTRIP_PORT, port);
+                config_set(CFG_NTRIP_MNTPOINT, mntpoint);
+                config_set(CFG_NTRIP_USERNAME, username);
+                config_set(CFG_NTRIP_PASSWORD, password);
+            }
+        }
+        else
+        {
+            cJSON* entry = cJSON_CreateObject();
+            if (entry != NULL)
+            {
+                cJSON_AddStringToObject(entry, "server", server);
+                cJSON_AddStringToObject(entry, "port", port);
+                cJSON_AddStringToObject(entry, "mntpoint", mntpoint);
+                cJSON_AddStringToObject(entry, "username", username);
+                cJSON_AddStringToObject(entry, "password", password);
+                char* entry_str = cJSON_PrintUnformatted(entry);
+                if (entry_str != NULL)
+                {
+                    err = storage_file_write_entry(STORAGE_NTRIP_FILE, entry_str);
+                    cJSON_free(entry_str);
+                }
+                cJSON_Delete(entry);
+            }
+        }
+    }
+    else if (strcmp(cmd, "disconnect") == 0)
+    {
+        ntrip_client_disconnect();
+        err = ESP_OK;
     }
     else if (strcmp(cmd, "delete") == 0)
     {
@@ -883,6 +930,7 @@ esp_err_t server_init(void)
     }
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.stack_size = 8192;
     // Allow up to 13 client sockets (LWIP max 16 minus 3 internal server sockets)
     // and enable LRU purging so idle connections do not block new clients
     config.max_open_sockets = 13;

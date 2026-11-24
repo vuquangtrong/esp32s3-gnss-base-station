@@ -83,20 +83,21 @@
 </head>
 
 <body x-data="app()" x-init="init()">
-  <template x-if="message">
-    <div class="container notification" x-text="message"></div>
+  <template x-if="notification">
+    <div class="container notification" x-text="notification"></div>
   </template>
 
-  <!-- General Confirmation / Input Dialog -->
-  <dialog :open="confirmDialog.open">
+  <!-- General Confirmation / Input / Message Dialog -->
+  <dialog :open="dialog.open">
     <article>
-      <h3 x-text="confirmDialog.message"></h3>
-      <template x-if="confirmDialog.hasInput">
-        <input x-model="confirmDialog.inputValue" :placeholder="confirmDialog.placeholder" />
+      <h3 x-text="dialog.message"></h3>
+      <template x-if="dialog.hasInput">
+        <input x-model="dialog.inputValue" :placeholder="dialog.placeholder" />
       </template>
       <footer>
-        <button class="outline" @click="closeConfirm(false)">Không</button>
-        <button @click="closeConfirm(true)">Có</button>
+        <button class="outline" x-show="dialog.hasConfirm" @click="closeConfirm(false)">Không</button>
+        <button x-show="dialog.hasConfirm" @click="closeConfirm(true)">Có</button>
+        <button x-show="!dialog.hasConfirm" @click="closeConfirm(false)">OK</button>
       </footer>
     </article>
   </dialog>
@@ -198,10 +199,18 @@
           <input required x-model="config.ntrip_port" />
         </div>
 
-        <label>Mountpoint</label>
+        <label>Điểm phát</label>
         <div class="grid" style="grid-template-columns: 2fr 1fr; align-items: baseline">
-          <input required x-model="config.ntrip_mntpoint" />
-          <button class="outline" @click="ntripClientQueryMountpoints()">Tra cứu</button>
+          <input required x-model="config.ntrip_mntpoint" list="ntrip_mntpoint_list" autocomplete="off"
+            :placeholder="prev_mntpoint" @focus="onMntpointFocus()" @click="onMntpointFocus()"
+            @blur="onMntpointBlur()" />
+          <datalist id="ntrip_mntpoint_list">
+            <template x-for="(mp, idx) in ntrip_mntpoint_list" :key="idx">
+              <option :value="mp" x-text="mp"></option>
+            </template>
+          </datalist>
+          <button class="outline" :disabled="status.ntrip_client_status !== 0" @click="ntripClientQueryMntpoints()">
+            Tra cứu</button>
         </div>
 
         <label>Tài khoản</label>
@@ -225,7 +234,7 @@
               <tr>
                 <th><small>Máy chủ</small></th>
                 <th><small>Cổng</small></th>
-                <th><small>Mountpoint</small></th>
+                <th><small>Điểm phát</small></th>
                 <th><small>Tài khoản</small></th>
                 <th><small>Mật khẩu</small></th>
                 <th style="width: 10ch;"><small>Thao tác</small></th>
@@ -343,7 +352,7 @@
         <label>Cổng</label>
         <input readonly value="2101" />
 
-        <label>Mountpoint</label>
+        <label>Điểm phát</label>
         <input readonly value="BASE" />
 
         <label>Tài khoản</label>
@@ -507,20 +516,23 @@
     function app() {
       return {
         heartbeat: false,
-        message: "",
+        notification: "",
         displayMode: "rover",
         config: {}, /* fields are defined in config.c */
         status: {}, /* fields are defined in status.c */
         saved_wifi_list: [],
         saved_ntrip_list: [],
         saved_base_list: [],
-        confirmDialog: {
+        ntrip_mntpoint_list: [],
+        prev_mntpoint: "",
+        dialog: {
           open: false,
           message: "",
+          hasConfirm: false,
+          onConfirm: null,
           hasInput: false,
           inputValue: "",
-          placeholder: "",
-          onConfirm: null
+          placeholder: ""
         },
         gnss: {
           fix_status: "NO FIX",
@@ -535,35 +547,48 @@
         ws: null,
         ubxBuf: [],
 
-        /* General confirmation and prompt dialog helpers */
+        /* General confirmation, prompt and message dialog helpers */
         askConfirm: function (msg, callback) {
-          this.confirmDialog.message = msg;
-          this.confirmDialog.hasInput = false;
-          this.confirmDialog.inputValue = "";
-          this.confirmDialog.placeholder = "";
-          this.confirmDialog.onConfirm = callback;
-          this.confirmDialog.open = true;
+          this.dialog.open = true;
+          this.dialog.message = msg;
+          this.dialog.hasConfirm = true;
+          this.dialog.onConfirm = callback;
+          this.dialog.hasInput = false;
+          this.dialog.inputValue = "";
+          this.dialog.placeholder = "";
         },
 
         askInput: function (msg, placeholder, callback) {
-          this.confirmDialog.message = msg;
-          this.confirmDialog.hasInput = true;
-          this.confirmDialog.inputValue = "";
-          this.confirmDialog.placeholder = placeholder || "";
-          this.confirmDialog.onConfirm = callback;
-          this.confirmDialog.open = true;
+          this.dialog.open = true;
+          this.dialog.message = msg;
+          this.dialog.hasConfirm = true;
+          this.dialog.onConfirm = callback;
+          this.dialog.hasInput = true;
+          this.dialog.inputValue = "";
+          this.dialog.placeholder = placeholder || "";
+        },
+
+        showMessage: function (msg) {
+          this.dialog.open = true;
+          this.dialog.message = msg;
+          this.dialog.hasConfirm = false;
+          this.dialog.onConfirm = null;
+          this.dialog.hasInput = false;
+          this.dialog.inputValue = "";
+          this.dialog.placeholder = "";
         },
 
         closeConfirm: function (confirmed) {
-          var cb = this.confirmDialog.onConfirm;
-          var val = this.confirmDialog.inputValue;
-          var hasInput = this.confirmDialog.hasInput;
-          this.confirmDialog.open = false;
-          this.confirmDialog.message = "";
-          this.confirmDialog.hasInput = false;
-          this.confirmDialog.inputValue = "";
-          this.confirmDialog.placeholder = "";
-          this.confirmDialog.onConfirm = null;
+          var cb = this.dialog.onConfirm;
+          var val = this.dialog.inputValue;
+          var hasInput = this.dialog.hasInput;
+          this.dialog.open = false;
+          this.dialog.message = "";
+          this.dialog.hasConfirm = false;
+          this.dialog.onConfirm = null;
+          this.dialog.hasInput = false;
+          this.dialog.inputValue = "";
+          this.dialog.placeholder = "";
           if (confirmed && typeof cb === "function") {
             if (hasInput) {
               cb(val);
@@ -934,6 +959,69 @@
           });
         },
 
+        /* Temporarily clear mountpoint input on focus so datalist shows all queried options */
+        onMntpointFocus: function () {
+          if (this.ntrip_mntpoint_list.length > 0 && this.config.ntrip_mntpoint) {
+            this.prev_mntpoint = this.config.ntrip_mntpoint;
+            this.config.ntrip_mntpoint = "";
+          }
+        },
+
+        /* Restore previous mountpoint on blur if nothing was selected or typed */
+        onMntpointBlur: function () {
+          if (!this.config.ntrip_mntpoint && this.prev_mntpoint) {
+            this.config.ntrip_mntpoint = this.prev_mntpoint;
+          }
+          this.prev_mntpoint = "";
+        },
+
+        /* Query mountpoint list from NTRIP caster */
+        ntripClientQueryMntpoints: function () {
+          var self = this;
+          if (this.status.ntrip_client_status !== 0) return;
+          if (!this.config.ntrip_server || !this.config.ntrip_port) return;
+          this.askConfirm("Tra cứu điểm phát từ: " + this.config.ntrip_server + ":" + this.config.ntrip_port + "?", function () {
+            self.httpRequest("POST", "/api/ntrip", {
+              command: "query",
+              server: self.config.ntrip_server,
+              port: "" + self.config.ntrip_port,
+              username: self.config.ntrip_username || "",
+              password: self.config.ntrip_password || ""
+            }, function (res) {
+              if (res && Array.isArray(res.data)) {
+                self.ntrip_mntpoint_list = res.data;
+              } else {
+                self.ntrip_mntpoint_list = [];
+              }
+              self.showMessage("Có " + self.ntrip_mntpoint_list.length + " điểm phát dữ liệu.");
+            });
+          });
+        },
+
+        /* Connect or disconnect NTRIP caster stream */
+        ntripClientToggleConnection: function () {
+          var self = this;
+          if (this.status.ntrip_client_status === 1 || this.status.ntrip_client_status === 2) {
+            this.askConfirm("Ngắt kết nối NTRIP?", function () {
+              self.httpRequest("POST", "/api/ntrip", {
+                command: "disconnect"
+              });
+            });
+          } else {
+            if (!this.config.ntrip_server || !this.config.ntrip_port || !this.config.ntrip_mntpoint) return;
+            this.askConfirm("Kết nối tới NTRIP: " + this.config.ntrip_server + ":" + this.config.ntrip_port + "/" + this.config.ntrip_mntpoint + "?", function () {
+              self.httpRequest("POST", "/api/ntrip", {
+                command: "connect",
+                server: self.config.ntrip_server,
+                port: "" + self.config.ntrip_port,
+                mntpoint: self.config.ntrip_mntpoint,
+                username: self.config.ntrip_username || "",
+                password: self.config.ntrip_password || ""
+              });
+            });
+          }
+        },
+
         /* Save NTRIP connection to saved list and storage */
         ntripClientSave: function () {
           var self = this;
@@ -1071,6 +1159,10 @@
           ws.binaryType = "arraybuffer";
           self.ws = ws;
 
+          ws.onopen = function () {
+            self.notification = "";
+          };
+
           ws.onmessage = function (evt) {
             self.heartbeat = !self.heartbeat;
             console.log("WS message");
@@ -1085,18 +1177,20 @@
             }
           };
 
-          /* Auto-reconnect after 2 seconds on disconnect */
+          /* Auto-reconnect after 5 seconds on error or close */
           ws.onclose = function () {
             self.heartbeat = false;
+            self.notification = "Mất kết nối đến thiết bị";
             console.log("WS close");
             self.ws = null;
             setTimeout(function () {
               self.connectWebSocket();
-            }, 2000);
+            }, 5000);
           };
 
           ws.onerror = function () {
             self.heartbeat = false;
+            self.notification = "Mất kết nối đến thiết bị";
             console.log("WS error");
             ws.close();
           };

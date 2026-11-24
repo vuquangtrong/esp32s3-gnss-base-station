@@ -8,6 +8,7 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "ntrip_client.h"
 #include "status.h"
 #include "uart.h"
 
@@ -103,6 +104,7 @@ static esp_err_t gnss_set_default_messages(void)
 
 esp_err_t gnss_set_mode_rover(void)
 {
+    ntrip_client_disconnect();
     ESP_RETURN_ON_ERROR(gnss_set_default_messages(), TAG, "Failed to set default messages");
     ESP_LOGI(TAG, "Setting GNSS mode to ROVER");
 
@@ -123,6 +125,8 @@ esp_err_t gnss_set_mode_rover(void)
     };
 
     ESP_RETURN_ON_ERROR(gnss_send_commands(cmds, sizeof(cmds) / sizeof(cmds[0])), TAG, "Failed to configure ROVER mode");
+    ESP_RETURN_ON_ERROR(ntrip_client_start_gga_task(), TAG, "Failed to start NTRIP GGA task");
+
     status_set_int(STT_GNSS_MODE, GNSS_ROVER);
     return ESP_OK;
 }
@@ -141,6 +145,9 @@ esp_err_t gnss_set_mode_base(
         ESP_LOGE(TAG, "Invalid base position: lat=%f, lon=%f, height=%f", latitude, longitude, height);
         return ESP_ERR_INVALID_ARG;
     }
+
+    ntrip_client_disconnect();
+    ntrip_client_stop_gga_task();
 
     ESP_GOTO_ON_ERROR(gnss_set_default_messages(), fail, TAG, "Failed to set default messages");
     ESP_LOGI(TAG, "Setting GNSS mode to BASE: lat=%.9f, lon=%.9f, height=%.4f", latitude, longitude, height);
@@ -229,6 +236,9 @@ esp_err_t gnss_set_mode_ppp(
         ESP_LOGE(TAG, "Invalid PPP parameters: duration=%" PRIu32 " s, accuracy=%" PRIu32 " mm", duration, accuracy);
         return ESP_ERR_INVALID_ARG;
     }
+
+    ntrip_client_disconnect();
+    ntrip_client_stop_gga_task();
 
     ESP_GOTO_ON_ERROR(gnss_set_default_messages(), fail, TAG, "Failed to set default messages");
     ESP_LOGI(TAG, "Setting GNSS mode to PPP: duration=%" PRIu32 " s, accuracy=%" PRIu32 " mm", duration, accuracy);

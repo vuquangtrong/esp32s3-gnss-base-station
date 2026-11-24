@@ -103,21 +103,3 @@ esp_err_t uart1_send_command(const char* msg)
     vTaskDelay(pdMS_TO_TICKS(50));  // wait for UBlox to process the command
     return ESP_OK;
 }
-
-esp_err_t uart2_send_data(const uint8_t* data, size_t length)
-{
-    if (!data || length == 0)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    int written = uart_write_bytes(UART2_PORT, data, length);
-    if (written < 0 || (size_t)written != length)
-    {
-        ESP_LOGE(TAG2, "failed to write %zu bytes", length);
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG2, "sent %d bytes", written);
-    return ESP_OK;
-}

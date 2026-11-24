@@ -34,7 +34,7 @@ static config_entry_t g_configs[CFG_MAX] = {
     // NTRIP Client
     [CFG_NTRIP_SERVER] = {"ntrip_server", "14.238.1.125"},
     [CFG_NTRIP_PORT] = {"ntrip_port", "2101"},
-    [CFG_NTRIP_MOUNTPOINT] = {"ntrip_mntpoint", "VRS.105M6"},
+    [CFG_NTRIP_MNTPOINT] = {"ntrip_mntpoint", "VRS.105M6"},
     [CFG_NTRIP_USERNAME] = {"ntrip_username", ""},
     [CFG_NTRIP_PASSWORD] = {"ntrip_password", ""},
     // Base Position
