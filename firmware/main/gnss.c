@@ -118,8 +118,8 @@ esp_err_t gnss_set_mode_rover(void)
         "CFG-VALSET 0 1 0 0 CFG-MSGOUT-UBX_NAV_PVT_UART1 2",
         "CFG-VALSET 0 1 0 0 CFG-UART1OUTPROT-UBX 1",
 
-        // UBlox UART2 TX: enable NMEA GGA output once every 10 epochs
-        "CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GGA_UART2 10",
+        // UBlox UART2 TX: enable NMEA GGA output once every 2 epochs
+        "CFG-VALSET 0 1 0 0 CFG-MSGOUT-NMEA_ID_GGA_UART2 2",
         "CFG-VALSET 0 1 0 0 CFG-UART2OUTPROT-NMEA 1",
 
         // UBlox UART2 RX: enable RTCM3 input to receive correction data from ESP32

@@ -1,17 +1,22 @@
 #include "ntrip_client.h"
 
+#include <errno.h>
+#include <netdb.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "cJSON.h"
 #include "driver/uart.h"
-#include "esp_http_client.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lwip/sockets.h"
 #include "status.h"
 #include "uart.h"
 
@@ -32,9 +37,119 @@ static TaskHandle_t g_stream_task_handle = NULL;
 static volatile bool g_stream_stop = false;
 static bool g_caster_busy = false;
 static ntrip_client_cfg_t g_stream_cfg;
+static char g_http_req_buf[NTRIP_REQ_BUF_SIZE];
 static char g_http_rx_buf[NTRIP_RX_BUF_SIZE];
 static char g_query_line_buf[NTRIP_LINE_BUF_SIZE];
 static char g_mntpoints_json[NTRIP_JSON_BUF_SIZE];
+
+static void ntrip_base64_encode(const uint8_t* src, size_t src_len, char* dst, size_t dst_size)
+{
+    static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    if (src == NULL || dst == NULL || dst_size == 0)
+    {
+        return;
+    }
+
+    size_t j = 0;
+    for (size_t i = 0; i < src_len && (j + 4) < dst_size; i += 3)
+    {
+        uint32_t octet_a = src[i];
+        uint32_t octet_b = (i + 1 < src_len) ? src[i + 1] : 0;
+        uint32_t octet_c = (i + 2 < src_len) ? src[i + 2] : 0;
+        uint32_t triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+
+        dst[j++] = b64_table[(triple >> 18) & 0x3F];
+        dst[j++] = b64_table[(triple >> 12) & 0x3F];
+        dst[j++] = (i + 1 < src_len) ? b64_table[(triple >> 6) & 0x3F] : '=';
+        dst[j++] = (i + 2 < src_len) ? b64_table[triple & 0x3F] : '=';
+    }
+    dst[j] = '\0';
+}
+
+static int ntrip_open_socket(const char* server, uint16_t port, uint32_t timeout_ms)
+{
+    char port_str[8];
+    snprintf(port_str, sizeof(port_str), "%u", (unsigned)port);
+
+    struct addrinfo hints = {
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM,
+    };
+    struct addrinfo* res = NULL;
+    if (getaddrinfo(server, port_str, &hints, &res) != 0 || res == NULL)
+    {
+        ESP_LOGE(TAG, "DNS lookup failed for %s:%s", server, port_str);
+        return -1;
+    }
+
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sock < 0)
+    {
+        freeaddrinfo(res);
+        return -1;
+    }
+
+    struct timeval tv = {
+        .tv_sec = (time_t)(timeout_ms / 1000),
+        .tv_usec = (suseconds_t)((timeout_ms % 1000) * 1000),
+    };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0)
+    {
+        close(sock);
+        freeaddrinfo(res);
+        return -1;
+    }
+
+    freeaddrinfo(res);
+    return sock;
+}
+
+static int ntrip_send_request(const char* server, uint16_t port, const char* path, const char* username, const char* password)
+{
+    int sock = ntrip_open_socket(server, port, NTRIP_HTTP_TIMEOUT_MS);
+    if (sock < 0)
+    {
+        return -1;
+    }
+
+    char auth_hdr[224] = "";
+    if (username != NULL && username[0] != '\0')
+    {
+        char cred[NTRIP_USERNAME_LEN_MAX + NTRIP_PASSWORD_LEN_MAX + 2];
+        int cred_len = snprintf(cred, sizeof(cred), "%s:%s", username, (password != NULL) ? password : "");
+        if (cred_len > 0 && (size_t)cred_len < sizeof(cred))
+        {
+            char b64[184];
+            ntrip_base64_encode((const uint8_t*)cred, (size_t)cred_len, b64, sizeof(b64));
+            snprintf(auth_hdr, sizeof(auth_hdr), "Authorization: Basic %s\r\n", b64);
+        }
+    }
+
+    // Send HTTP/1.1 with Ntrip-Version: Ntrip/2.0 so both NTRIP v2 and NTRIP v1 casters accept the request
+    int req_len = snprintf(
+        g_http_req_buf, sizeof(g_http_req_buf),
+        "GET /%s HTTP/1.1\r\n"
+        "Host: %s:%u\r\n"
+        "User-Agent: NTRIP GNSS/1.0\r\n"
+        "Ntrip-Version: Ntrip/2.0\r\n"
+        "Accept: */*\r\n"
+        "Connection: close\r\n"
+        "%s"
+        "\r\n",
+        (path != NULL) ? path : "", server, (unsigned)port, auth_hdr
+    );
+
+    if (req_len <= 0 || (size_t)req_len >= sizeof(g_http_req_buf) || send(sock, g_http_req_buf, (size_t)req_len, 0) != req_len)
+    {
+        close(sock);
+        return -1;
+    }
+
+    return sock;
+}
 
 static bool ntrip_acquire_caster(void)
 {
@@ -190,42 +305,10 @@ const char* ntrip_client_query_mountpoints(const char* server, uint16_t port, co
         return NULL;
     }
 
-    esp_http_client_config_t config = {
-        .host = server,
-        .port = (int)port,
-        .path = "/",
-        .username = (username != NULL && username[0] != '\0') ? username : NULL,
-        .password = (password != NULL) ? password : NULL,
-        .auth_type = (username != NULL && username[0] != '\0') ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_NONE,
-        .timeout_ms = NTRIP_HTTP_TIMEOUT_MS,
-    };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (client == NULL)
+    int sock = ntrip_send_request(server, port, "", username, password);
+    if (sock < 0)
     {
-        ESP_LOGE(TAG, "Failed to init HTTP client for mountpoint query");
-        ntrip_release_caster();
-        return NULL;
-    }
-
-    esp_http_client_set_header(client, "User-Agent", "NTRIP GNSS/1.0");
-    esp_http_client_set_header(client, "Ntrip-Version", "Ntrip/2.0");
-
-    if (esp_http_client_open(client, 0) != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to open connection to %s:%u", server, (unsigned)port);
-        esp_http_client_cleanup(client);
-        ntrip_release_caster();
-        return NULL;
-    }
-
-    esp_http_client_fetch_headers(client);
-    int status_code = esp_http_client_get_status_code(client);
-    if (status_code != 200)
-    {
-        ESP_LOGE(TAG, "Caster returned HTTP status %d for sourcetable", status_code);
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
+        ESP_LOGE(TAG, "Failed to request sourcetable from %s:%u", server, (unsigned)port);
         ntrip_release_caster();
         return NULL;
     }
@@ -235,8 +318,7 @@ const char* ntrip_client_query_mountpoints(const char* server, uint16_t port, co
     if (data_arr == NULL)
     {
         cJSON_Delete(root);
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
+        close(sock);
         ntrip_release_caster();
         return NULL;
     }
@@ -244,8 +326,11 @@ const char* ntrip_client_query_mountpoints(const char* server, uint16_t port, co
     size_t mnt_count = 0;
     size_t line_len = 0;
     int bytes_read = 0;
+    bool first_line = true;
+    bool status_ok = false;
+    bool done = false;
 
-    while ((bytes_read = esp_http_client_read(client, g_http_rx_buf, sizeof(g_http_rx_buf))) > 0)
+    while (!done && (bytes_read = recv(sock, g_http_rx_buf, sizeof(g_http_rx_buf), 0)) > 0)
     {
         for (int i = 0; i < bytes_read; i++)
         {
@@ -257,7 +342,28 @@ const char* ntrip_client_query_mountpoints(const char* server, uint16_t port, co
             if (c == '\n')
             {
                 g_query_line_buf[line_len] = '\0';
-                if (mnt_count < NTRIP_MNTPOINTS_MAX && strncmp(g_query_line_buf, "STR;", 4) == 0)
+                if (first_line)
+                {
+                    first_line = false;
+                    // Support NTRIP v1 ("SOURCETABLE 200 OK") and NTRIP v2 ("HTTP/1.x 200 OK")
+                    if (strncasecmp(g_query_line_buf, "SOURCETABLE 200", 15) == 0 ||
+                        (strncasecmp(g_query_line_buf, "HTTP/1.", 7) == 0 && strstr(g_query_line_buf, " 200") != NULL))
+                    {
+                        status_ok = true;
+                    }
+                    else
+                    {
+                        ESP_LOGE(TAG, "Caster rejected sourcetable query: %s", g_query_line_buf);
+                        done = true;
+                        break;
+                    }
+                }
+                else if (strncmp(g_query_line_buf, "ENDSOURCETABLE", 14) == 0)
+                {
+                    done = true;
+                    break;
+                }
+                else if (mnt_count < NTRIP_MNTPOINTS_MAX && strncmp(g_query_line_buf, "STR;", 4) == 0)
                 {
                     char* saveptr = NULL;
                     char* tok = strtok_r(g_query_line_buf, ";", &saveptr);
@@ -285,8 +391,14 @@ const char* ntrip_client_query_mountpoints(const char* server, uint16_t port, co
         }
     }
 
-    esp_http_client_close(client);
-    esp_http_client_cleanup(client);
+    close(sock);
+
+    if (!status_ok)
+    {
+        cJSON_Delete(root);
+        ntrip_release_caster();
+        return NULL;
+    }
 
     bool ok = cJSON_PrintPreallocated(root, g_mntpoints_json, (int)sizeof(g_mntpoints_json), false);
     cJSON_Delete(root);
@@ -307,56 +419,143 @@ static void ntrip_stream_task(void* arg)
     (void)arg;
     status_set_int(STT_NTRIP_CLIENT_STATUS, CONN_CONNECTING);
 
-    char path[NTRIP_MNTPOINT_LEN_MAX + 2];
-    snprintf(path, sizeof(path), "/%s", g_stream_cfg.mntpoint);
+    int sock = ntrip_send_request(g_stream_cfg.server, g_stream_cfg.port, g_stream_cfg.mntpoint, g_stream_cfg.username, g_stream_cfg.password);
+    if (sock < 0)
+    {
+        ESP_LOGE(TAG, "Failed to connect to caster %s:%u/%s", g_stream_cfg.server, (unsigned)g_stream_cfg.port, g_stream_cfg.mntpoint);
+        goto cleanup;
+    }
 
-    esp_http_client_config_t config = {
-        .host = g_stream_cfg.server,
-        .port = (int)g_stream_cfg.port,
-        .path = path,
-        .username = (g_stream_cfg.username[0] != '\0') ? g_stream_cfg.username : NULL,
-        .password = g_stream_cfg.password,
-        .auth_type = (g_stream_cfg.username[0] != '\0') ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_NONE,
-        .timeout_ms = NTRIP_HTTP_TIMEOUT_MS,
+    // Use a 1-second receive timeout during handshake so we can send GGA if the caster waits for position before replying
+    struct timeval tv_handshake = {
+        .tv_sec = 1,
+        .tv_usec = 0,
     };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv_handshake, sizeof(tv_handshake));
 
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (client == NULL)
+    char tx_gga[NTRIP_NMEA_BUF_SIZE];
+    size_t hdr_len = 0;
+    size_t payload_offset = 0;
+    bool connected = false;
+    bool gga_sent = false;
+    uint32_t wait_sec = 0;
+
+    while (!g_stream_stop && hdr_len < sizeof(g_http_rx_buf) - 1)
     {
-        ESP_LOGE(TAG, "Failed to init HTTP client for streaming");
+        int r = recv(sock, g_http_rx_buf + hdr_len, sizeof(g_http_rx_buf) - 1 - hdr_len, 0);
+        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+        {
+            wait_sec++;
+            if (ntrip_take_gga(tx_gga, sizeof(tx_gga), !gga_sent))
+            {
+                if (send(sock, tx_gga, strlen(tx_gga), 0) < 0)
+                {
+                    ESP_LOGW(TAG, "Failed to send GGA during handshake");
+                    goto cleanup;
+                }
+                gga_sent = true;
+                ESP_LOGI(TAG, "Sent GGA: %s", tx_gga);
+            }
+
+            if (wait_sec >= (NTRIP_HTTP_TIMEOUT_MS / 1000))
+            {
+                ESP_LOGE(TAG, "Timed out waiting for caster response header");
+                goto cleanup;
+            }
+            continue;
+        }
+        if (r <= 0)
+        {
+            ESP_LOGE(TAG, "Caster closed connection during handshake");
+            goto cleanup;
+        }
+
+        hdr_len += (size_t)r;
+        g_http_rx_buf[hdr_len] = '\0';
+
+        char* line_end = strchr(g_http_rx_buf, '\n');
+        if (line_end == NULL)
+        {
+            continue;
+        }
+
+        bool is_icy_200 = (strncasecmp(g_http_rx_buf, "ICY 200", 7) == 0);
+        bool is_http_200 = (strncasecmp(g_http_rx_buf, "HTTP/1.", 7) == 0 && strstr(g_http_rx_buf, " 200") != NULL && strstr(g_http_rx_buf, " 200") < line_end);
+        bool is_sourcetable = (strncasecmp(g_http_rx_buf, "SOURCETABLE", 11) == 0 || strcasestr(g_http_rx_buf, "gnss/sourcetable") != NULL);
+
+        if (is_sourcetable || (!is_icy_200 && !is_http_200))
+        {
+            *line_end = '\0';
+            if (line_end > g_http_rx_buf && *(line_end - 1) == '\r')
+            {
+                *(line_end - 1) = '\0';
+            }
+            ESP_LOGE(TAG, "Caster rejected stream connection: %s", g_http_rx_buf);
+            goto cleanup;
+        }
+
+        if (is_icy_200)
+        {
+            // NTRIP v1 "ICY 200 OK\r\n" may be followed by an optional blank "\r\n" or immediately by RTCM bytes
+            payload_offset = (size_t)(line_end - g_http_rx_buf + 1);
+            if (payload_offset + 2 <= hdr_len && g_http_rx_buf[payload_offset] == '\r' && g_http_rx_buf[payload_offset + 1] == '\n')
+            {
+                payload_offset += 2;
+            }
+            else if (payload_offset + 1 <= hdr_len && g_http_rx_buf[payload_offset] == '\n')
+            {
+                payload_offset += 1;
+            }
+            connected = true;
+            break;
+        }
+
+        // Standard HTTP/1.x 200 OK response: wait for end of headers (\r\n\r\n or \n\n)
+        char* hdr_end = strstr(g_http_rx_buf, "\r\n\r\n");
+        if (hdr_end != NULL)
+        {
+            payload_offset = (size_t)(hdr_end - g_http_rx_buf + 4);
+            connected = true;
+            break;
+        }
+        hdr_end = strstr(g_http_rx_buf, "\n\n");
+        if (hdr_end != NULL)
+        {
+            payload_offset = (size_t)(hdr_end - g_http_rx_buf + 2);
+            connected = true;
+            break;
+        }
+    }
+
+    if (!connected)
+    {
+        ESP_LOGE(TAG, "Caster connection aborted before stream start");
         goto cleanup;
     }
 
-    esp_http_client_set_header(client, "User-Agent", "NTRIP GNSS/1.0");
-    esp_http_client_set_header(client, "Ntrip-Version", "Ntrip/2.0");
-    esp_http_client_set_header(client, "Connection", "keep-alive");
-
-    if (esp_http_client_open(client, 0) != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to connect to caster %s:%u%s", g_stream_cfg.server, (unsigned)g_stream_cfg.port, path);
-        goto cleanup;
-    }
-
-    esp_http_client_fetch_headers(client);
-    int status_code = esp_http_client_get_status_code(client);
-    if (status_code != 200)
-    {
-        ESP_LOGE(TAG, "Caster rejected stream connection with status %d", status_code);
-        goto cleanup;
-    }
-
-    ESP_LOGI(TAG, "Connected to caster %s:%u%s", g_stream_cfg.server, (unsigned)g_stream_cfg.port, path);
+    ESP_LOGI(TAG, "Connected to caster %s:%u/%s", g_stream_cfg.server, (unsigned)g_stream_cfg.port, g_stream_cfg.mntpoint);
     status_set_int(STT_NTRIP_CLIENT_STATUS, CONN_CONNECTED);
     status_set_int(STT_NTRIP_RECEIVED_BYTES, 0);
 
-    // Use a short read timeout for low-latency RTCM forwarding and responsive disconnect
-    esp_http_client_set_timeout_ms(client, NTRIP_STREAM_READ_TIMEOUT_MS);
-
-    char tx_gga[NTRIP_NMEA_BUF_SIZE];
-    // Immediately send buffered GGA message upon connecting
-    if (ntrip_take_gga(tx_gga, sizeof(tx_gga), true))
+    // Forward any trailing RTCM bytes already received in the handshake packet
+    if (hdr_len > payload_offset)
     {
-        if (esp_http_client_write(client, tx_gga, (int)strlen(tx_gga)) < 0)
+        size_t init_bytes = hdr_len - payload_offset;
+        uart_write_bytes(UART2_PORT, g_http_rx_buf + payload_offset, init_bytes);
+        status_set_int(STT_NTRIP_RECEIVED_BYTES, (int32_t)init_bytes);
+    }
+
+    // Use a short read timeout for low-latency RTCM forwarding and responsive disconnect
+    struct timeval tv = {
+        .tv_sec = NTRIP_STREAM_READ_TIMEOUT_MS / 1000,
+        .tv_usec = (NTRIP_STREAM_READ_TIMEOUT_MS % 1000) * 1000,
+    };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    // Send GGA immediately after receiving 200 OK if not already sent during handshake
+    if (!gga_sent && ntrip_take_gga(tx_gga, sizeof(tx_gga), true))
+    {
+        if (send(sock, tx_gga, strlen(tx_gga), 0) < 0)
         {
             ESP_LOGW(TAG, "Failed to send initial GGA to caster");
             goto cleanup;
@@ -365,13 +564,18 @@ static void ntrip_stream_task(void* arg)
     }
 
     uint32_t idle_ticks = 0;
+    uint32_t gga_ticks = 0;
 
     while (!g_stream_stop)
     {
-        // Send again whenever a new GGA message is set
-        if (ntrip_take_gga(tx_gga, sizeof(tx_gga), false))
+        gga_ticks++;
+        bool force_gga = (gga_ticks >= NTRIP_STREAM_GGA_KEEPALIVE_TICKS);
+
+        // Send whenever a new GGA message arrives from UART2, or periodically as VRS keepalive
+        if (ntrip_take_gga(tx_gga, sizeof(tx_gga), force_gga))
         {
-            if (esp_http_client_write(client, tx_gga, (int)strlen(tx_gga)) < 0)
+            gga_ticks = 0;
+            if (send(sock, tx_gga, strlen(tx_gga), 0) < 0)
             {
                 ESP_LOGW(TAG, "Failed to send updated GGA to caster");
                 break;
@@ -379,14 +583,14 @@ static void ntrip_stream_task(void* arg)
             ESP_LOGI(TAG, "Sent GGA: %s", tx_gga);
         }
 
-        int bytes_read = esp_http_client_read(client, g_http_rx_buf, sizeof(g_http_rx_buf));
+        int bytes_read = recv(sock, g_http_rx_buf, sizeof(g_http_rx_buf), 0);
         if (bytes_read > 0)
         {
             idle_ticks = 0;
             uart_write_bytes(UART2_PORT, g_http_rx_buf, (size_t)bytes_read);
             status_set_int(STT_NTRIP_RECEIVED_BYTES, status_get_int(STT_NTRIP_RECEIVED_BYTES) + bytes_read);
         }
-        else if (bytes_read == -ESP_ERR_HTTP_EAGAIN)
+        else if (bytes_read < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         {
             idle_ticks++;
             if (idle_ticks >= NTRIP_STREAM_MAX_IDLE_TICKS)
@@ -404,17 +608,16 @@ static void ntrip_stream_task(void* arg)
         {
             if (!g_stream_stop)
             {
-                ESP_LOGW(TAG, "Caster stream read error: %d", bytes_read);
+                ESP_LOGW(TAG, "Caster stream read error: %d (errno=%d)", bytes_read, errno);
             }
             break;
         }
     }
 
 cleanup:
-    if (client != NULL)
+    if (sock >= 0)
     {
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
+        close(sock);
     }
     status_set_int(STT_NTRIP_CLIENT_STATUS, CONN_DISCONNECTED);
     g_stream_task_handle = NULL;
