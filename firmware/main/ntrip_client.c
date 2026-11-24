@@ -248,8 +248,8 @@ static void ntrip_gga_task(void* arg)
                     if (strstr(g_gga_line_buf, "GGA,") != NULL)
                     {
                         ntrip_save_gga(g_gga_line_buf);
-                        g_gga_line_buf[strcspn(g_gga_line_buf, "\r\n")] = '\0';
-                        ESP_LOGI(TAG, "%s", g_gga_line_buf);
+                        // g_gga_line_buf[strcspn(g_gga_line_buf, "\r\n")] = '\0';
+                        // ESP_LOGI(TAG, "%s", g_gga_line_buf);
                     }
                     in_sentence = false;
                     line_idx = 0;
